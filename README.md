@@ -46,8 +46,14 @@ Shortcuts inside a note:
 | `Ctrl+D` | doodle |
 | `Esc` | leave doodle mode, or cancel an erase |
 
-`Clio.exe --quit` asks a running Clio to save and exit. Argus uses this for
-its Stop button.
+## With Argus
+
+Clio is a separate download from [Argus](https://github.com/XRTC5/argus), and
+each works without the other. If both are installed, they find each other with
+no setup. Each time Clio starts it writes its path to
+`%APPDATA%\Clio\app.json`, and Argus shows a **Clio** row with Start and Stop.
+Argus's Stop runs `Clio.exe --quit`, which asks the running Clio to save and
+exit, so it never kills Clio partway through a save.
 
 ## Build
 
