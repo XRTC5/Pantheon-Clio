@@ -55,6 +55,7 @@ public partial class App : Application
             Log.Error("unhandled exception", args.ExceptionObject as Exception);
 
         Store.Load();
+        Store.Announce();
 
         var notes = new Notes();
         notes.Start();

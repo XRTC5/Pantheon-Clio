@@ -128,6 +128,28 @@ internal static class Store
         }
     }
 
+    /// <summary>
+    /// Writes %APPDATA%\Clio\app.json with the path Clio is running from. This
+    /// is how Argus, if it is installed, finds Clio and offers Start and Stop
+    /// for it; nothing in Clio depends on Argus being there. Written only when
+    /// the path changes, so Argus re-reads it only when there is news.
+    /// </summary>
+    public static void Announce()
+    {
+        try
+        {
+            var file = Path.Combine(Directory, "app.json");
+            var json = JsonSerializer.Serialize(new { ExePath = Environment.ProcessPath, Version = 1 }, Json);
+            if (File.Exists(file) && File.ReadAllText(file) == json) return;
+            System.IO.Directory.CreateDirectory(Directory);
+            File.WriteAllText(file, json);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"app.json not written: {ex.Message}");
+        }
+    }
+
     public static void SaveSoon()
     {
         _debounce ??= new DispatcherTimer(TimeSpan.FromMilliseconds(700), DispatcherPriority.Background,
