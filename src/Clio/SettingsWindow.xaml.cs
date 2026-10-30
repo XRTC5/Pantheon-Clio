@@ -53,7 +53,7 @@ public partial class SettingsWindow : Window
 
     private void Top_Click(object sender, RoutedEventArgs e)
     {
-        if (!_syncing) _notes.SetLayer(TopSwitch.IsChecked == true ? Layer.OnTop : Layer.Desktop);
+        if (!_syncing) _notes.SetLayer(TopSwitch.IsChecked == true ? Layer.OnTop : Layer.Normal);
     }
 
     private void Fewer_Click(object sender, RoutedEventArgs e) => StepDays(-1);

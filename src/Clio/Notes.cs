@@ -370,7 +370,7 @@ internal sealed class Notes
             menu.Items.Add(Item(s.Collapsed ? "Release all notes" : "Stow all notes", Toggle));
         menu.Items.Add(new Separator());
 
-        var top = Item("Keep notes on top", () => SetLayer(s.Layer == Layer.OnTop ? Layer.Desktop : Layer.OnTop));
+        var top = Item("Keep notes on top", () => SetLayer(s.Layer == Layer.OnTop ? Layer.Normal : Layer.OnTop));
         top.IsChecked = s.Layer == Layer.OnTop;
         menu.Items.Add(top);
         menu.Items.Add(Item(s.History.Count == 0 ? "History" : $"History ({s.History.Count})", OpenHistory));

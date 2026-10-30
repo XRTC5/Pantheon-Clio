@@ -25,6 +25,11 @@ internal static class Native
     }
 
     public const int GWL_EXSTYLE = -20;
+    public const int GWL_STYLE   = -16;
+
+    public const int WS_THICKFRAME   = 0x00040000;
+    public const int WS_MINIMIZEBOX  = 0x00020000;
+    public const int WS_MAXIMIZEBOX  = 0x00010000;
 
     public const int WS_EX_TOOLWINDOW = 0x00000080;
     public const int WS_EX_APPWINDOW  = 0x00040000;

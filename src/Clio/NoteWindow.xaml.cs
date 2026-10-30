@@ -117,7 +117,9 @@ public partial class NoteWindow : Window
             if (!e.DataObject.GetDataPresent(DataFormats.UnicodeText)) e.CancelCommand();
         });
 
-        SourceInitialized += (_, _) => Placer.ApplyLayer();
+        // Not on SourceInitialized: Attach has already created the handle, so
+        // that event has fired and a handler added now would never run.
+        Placer.ApplyLayer();
         PreviewKeyDown += OnKey;
     }
 
@@ -440,6 +442,106 @@ public partial class NoteWindow : Window
     private void Numbers_Click(object sender, RoutedEventArgs e) => Run(EditingCommands.ToggleNumbering);
 
     private void Clear_Click(object sender, RoutedEventArgs e) => ClearFormatting();
+    private void Checklist_Click(object sender, RoutedEventArgs e) => ToggleChecklist();
+
+    /// <summary>
+    /// The Docs checklist: every paragraph the selection touches gets a box at
+    /// its start, or, if they all have one already, loses it. Same glyph as
+    /// /todo, so a click on it ticks it.
+    /// </summary>
+    private void ToggleChecklist()
+    {
+        var paragraphs = new List<Paragraph>();
+        var end = Editor.Selection.End;
+        for (var p = Editor.Selection.Start; p is not null && p.CompareTo(end) <= 0;
+             p = p.GetNextContextPosition(LogicalDirection.Forward))
+        {
+            if (p.Paragraph is { } para && !paragraphs.Contains(para)) paragraphs.Add(para);
+        }
+        if (paragraphs.Count == 0) return;
+
+        var remove = paragraphs.All(Boxed);
+        foreach (var para in paragraphs)
+        {
+            if (remove) Unbox(para);
+            else if (!Boxed(para)) Box(para);
+        }
+        Editor.Focus();
+    }
+
+    private static string TextOf(Paragraph para) => new TextRange(para.ContentStart, para.ContentEnd).Text;
+
+    private static bool Boxed(Paragraph para)
+    {
+        var t = TextOf(para);
+        return t.Length > 0 && (t[0] == Open || t[0] == Done);
+    }
+
+    private static void Box(Paragraph para) =>
+        para.ContentStart.GetInsertionPosition(LogicalDirection.Forward).InsertTextInRun(Open + " ");
+
+    /// <summary>Removes the box and the space after it.</summary>
+    private static void Unbox(Paragraph para)
+    {
+        var t = TextOf(para);
+        var len = t.Length > 1 && t[1] == ' ' ? 2 : 1;
+        var start = para.ContentStart.GetInsertionPosition(LogicalDirection.Forward);
+        new TextRange(start, start.GetPositionAtOffset(len)!).Text = "";
+    }
+
+    /// <summary>
+    /// Enter, the Docs way. On a checklist line it carries a fresh unticked
+    /// box to the new line; on an empty checklist line or an empty bullet or
+    /// numbered item it ends the list instead of adding another. A list item
+    /// with text is left to the RichTextBox, which already continues lists.
+    /// True when the key was dealt with here.
+    /// </summary>
+    private bool EnterInList()
+    {
+        if (!Editor.Selection.IsEmpty || Editor.CaretPosition.Paragraph is not { } para) return false;
+        var text = TextOf(para);
+
+        if (Boxed(para))
+        {
+            Editor.BeginChange();
+            try
+            {
+                if (text[1..].Trim().Length == 0)
+                {
+                    Unbox(para);
+                }
+                else
+                {
+                    EditingCommands.EnterParagraphBreak.Execute(null, Editor);
+                    if (Editor.CaretPosition.Paragraph is { } next && !Boxed(next))
+                    {
+                        Box(next);
+                        Editor.CaretPosition = next.ContentStart
+                            .GetInsertionPosition(LogicalDirection.Forward)
+                            .GetPositionAtOffset(2) ?? next.ContentEnd;
+                    }
+                }
+            }
+            finally
+            {
+                Editor.EndChange();
+            }
+            return true;
+        }
+
+        if (para.Parent is ListItem { List: { } list } && text.Trim().Length == 0)
+        {
+            // Toggling the list's own kind on an empty item lifts it out of
+            // the list; toggling the other kind would convert it instead.
+            var numbered = list.MarkerStyle is TextMarkerStyle.Decimal
+                or TextMarkerStyle.LowerLatin or TextMarkerStyle.UpperLatin
+                or TextMarkerStyle.LowerRoman or TextMarkerStyle.UpperRoman;
+            Run(numbered ? EditingCommands.ToggleNumbering : EditingCommands.ToggleBullets);
+            return true;
+        }
+
+        return false;
+    }
 
     private void ClearFormatting()
     {
@@ -545,6 +647,8 @@ public partial class NoteWindow : Window
             (true, true, false, Key.OemComma) => Handle(() => StepSize(-1)),
             (true, true, false, Key.D7) => Handle(() => Run(EditingCommands.ToggleNumbering)),
             (true, true, false, Key.D8) => Handle(() => Run(EditingCommands.ToggleBullets)),
+            (true, true, false, Key.D9) => Handle(ToggleChecklist),
+            (false, false, false, Key.Enter) => EnterInList(),
             (true, true, false, Key.L) => Handle(() => Run(EditingCommands.AlignLeft)),
             (true, true, false, Key.E) => Handle(() => Run(EditingCommands.AlignCenter)),
             (true, true, false, Key.R) => Handle(() => Run(EditingCommands.AlignRight)),

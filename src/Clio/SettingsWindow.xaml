@@ -52,7 +52,7 @@
                     <StackPanel>
                         <TextBlock Text="Keep notes on top" FontFamily="{StaticResource UiFont}" FontSize="12"
                                    Foreground="{StaticResource TextHi}" />
-                        <TextBlock Text="Off: notes sit on the desktop, like Argus." FontFamily="{StaticResource UiFont}"
+                        <TextBlock Text="Off: a note comes forward when clicked." FontFamily="{StaticResource UiFont}"
                                    FontSize="10" Foreground="{StaticResource TextLow}" Margin="0,2,0,0" />
                     </StackPanel>
                     <ToggleButton x:Name="TopSwitch" Style="{StaticResource Switch}" HorizontalAlignment="Right"

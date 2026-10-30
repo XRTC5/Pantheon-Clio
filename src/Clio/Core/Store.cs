@@ -8,11 +8,18 @@ namespace Clio.Core;
 /// <summary>Where every Clio window sits relative to other windows.</summary>
 public enum Layer
 {
-    /// <summary>Bottom of the Z-order, like Argus: other windows open over it.</summary>
+    /// <summary>
+    /// Retired: pinned to the bottom of the Z-order, like Argus. RTC found a
+    /// note he could click but never bring forward was the wrong default.
+    /// Kept only so an older notes.json still parses; Load maps it to Normal.
+    /// </summary>
     Desktop,
 
     /// <summary>Topmost, for reading notes over work.</summary>
     OnTop,
+
+    /// <summary>An ordinary window: a click brings a note forward, a click on Chrome sends it back.</summary>
+    Normal,
 }
 
 public sealed class NoteData
@@ -54,7 +61,7 @@ public sealed class NoteData
 public sealed class ClioState
 {
     public bool Collapsed { get; set; }
-    public Layer Layer { get; set; } = Layer.Desktop;
+    public Layer Layer { get; set; } = Layer.Normal;
 
     public bool HasHub { get; set; }
     public int HubLeft { get; set; }
@@ -109,6 +116,7 @@ internal static class Store
         {
             if (File.Exists(FilePath))
                 State = JsonSerializer.Deserialize<ClioState>(File.ReadAllText(FilePath), Json) ?? new();
+            if (State.Layer == Layer.Desktop) State.Layer = Layer.Normal;
         }
         catch (Exception ex)
         {

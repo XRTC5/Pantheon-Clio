@@ -32,7 +32,9 @@ public partial class HubWindow : Window
             Store.Save();
         };
 
-        SourceInitialized += (_, _) => Placer.ApplyLayer();
+        // Not on SourceInitialized: Attach has already created the handle, so
+        // that event has fired and a handler added now would never run.
+        Placer.ApplyLayer();
     }
 
     /// <summary>

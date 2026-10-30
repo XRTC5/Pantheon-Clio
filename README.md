@@ -5,7 +5,7 @@ Desktop sticky notes for Windows, built as a companion to
 eyes. Clio is the muse of history, the one who keeps the record.
 
 - **Notes stay where you leave them.** Drag a note by its header and resize it
-  from any edge. Its exact rectangle is restored after a restart, in physical
+  from any edge or the grip in the bottom-right corner. Its exact rectangle is restored after a restart, in physical
   pixels, so it stays correct across displays with different scale factors.
 - **One hub.** Click the hub to stow every note into it, and click again to
   release them all to their places. A stowed note has no window, so it costs
@@ -24,9 +24,12 @@ eyes. Clio is the muse of history, the one who keeps the record.
 - **Settings** (the gear on the hub) has Launch at start, Keep notes on top,
   and the History retention. Launch at start uses a logon task, the same as
   Argus.
-- **Desktop layer by default**, the same as Argus: other windows open over
-  your notes. Choose *Keep notes on top* from the hub's right-click menu or the
-  tray menu to keep them above your work instead.
+- **Click a note to bring it forward**, the way any window works: click Chrome
+  and Chrome comes back in front. Turn on *Keep notes on top* (Settings, or the
+  hub's right-click menu) to keep notes above everything while you work.
+- **Lists behave like Docs.** Enter on a checklist line starts a new unticked
+  box, and on a bulleted or numbered line it continues the list. Enter on an
+  empty item ends the list.
 
 Shortcuts inside a note:
 
@@ -36,7 +39,7 @@ Shortcuts inside a note:
 | `Alt+Shift+5` or `Ctrl+Shift+X` | strikethrough |
 | `Ctrl+.` / `Ctrl+,` | superscript / subscript |
 | `Ctrl+Shift+.` / `Ctrl+Shift+,` | larger / smaller text |
-| `Ctrl+Shift+7` / `Ctrl+Shift+8` | numbered / bulleted list |
+| `Ctrl+Shift+7` / `Ctrl+Shift+8` / `Ctrl+Shift+9` | numbered list / bulleted list / checklist |
 | `Ctrl+Shift+L` / `E` / `R` / `J` | align left / centre / right / justify |
 | `Ctrl+\` | clear formatting |
 | `Ctrl+N` | new note beside this one |

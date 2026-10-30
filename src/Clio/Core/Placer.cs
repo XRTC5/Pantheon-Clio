@@ -6,13 +6,13 @@ namespace Clio.Core;
 
 /// <summary>
 /// What every Clio window needs from Win32: placement in physical pixels, the
-/// shared layer (desktop or on top), a resize band on a borderless window, and
+/// shared layer (normal or on top), a resize band on a borderless window, and
 /// a callback when the user lets go after a drag or resize.
 ///
-/// Same mechanisms as Argus's DockManager, for the same reasons: bottom of the
-/// Z-order rather than WorkerW reparenting, and no WPF Left/Top anywhere,
-/// because those are device-independent units and silently wrong on a machine
-/// with two scale factors.
+/// Placement follows Argus's DockManager: no WPF Left/Top anywhere, because
+/// those are device-independent units and silently wrong on a machine with
+/// two scale factors. Argus's bottom-of-Z-order pinning was here too until
+/// 2026-10-30; notes are ordinary windows now, so a click brings one forward.
 /// </summary>
 internal sealed class Placer
 {
@@ -49,6 +49,21 @@ internal sealed class Placer
         ex |= Native.WS_EX_TOOLWINDOW;
         ex &= ~Native.WS_EX_APPWINDOW;
         Native.SetWindowLong(_hwnd, Native.GWL_EXSTYLE, ex);
+
+        if (_resizable)
+        {
+            // Answering WM_NCHITTEST with an edge code is not enough on its
+            // own: Windows only starts a resize drag for a window that has a
+            // sizing frame. WPF strips WS_THICKFRAME for ResizeMode=NoResize,
+            // so the notes reported resize edges that did nothing. The frame
+            // style goes back on by hand; the max and min boxes stay off,
+            // because with them a note dragged to the top of the screen would
+            // snap to full screen.
+            var style = Native.GetWindowLong(_hwnd, Native.GWL_STYLE);
+            style |= Native.WS_THICKFRAME;
+            style &= ~(Native.WS_MAXIMIZEBOX | Native.WS_MINIMIZEBOX);
+            Native.SetWindowLong(_hwnd, Native.GWL_STYLE, style);
+        }
     }
 
     public Native.RECT Rect
@@ -98,11 +113,6 @@ internal sealed class Placer
         var after = Store.State.Layer == Layer.OnTop ? Native.HWND_TOPMOST : Native.HWND_NOTOPMOST;
         Native.SetWindowPos(_hwnd, after, 0, 0, 0, 0,
             (uint)(Native.SWP.NOMOVE | Native.SWP.NOSIZE | Native.SWP.NOACTIVATE));
-        if (Store.State.Layer == Layer.Desktop)
-        {
-            Native.SetWindowPos(_hwnd, Native.HWND_BOTTOM, 0, 0, 0, 0,
-                (uint)(Native.SWP.NOMOVE | Native.SWP.NOSIZE | Native.SWP.NOACTIVATE));
-        }
     }
 
     /// <summary>Scale of the monitor this window is on. 1.0 at 96 DPI.</summary>
@@ -119,17 +129,6 @@ internal sealed class Placer
     {
         switch (msg)
         {
-            case Native.WM_WINDOWPOSCHANGING when _followLayer && Store.State.Layer == Layer.Desktop && !_positioning:
-            {
-                // Desktop layer: whatever tries to raise the window - a click,
-                // a focus change - is rewritten to "stay at the bottom".
-                var pos = Marshal.PtrToStructure<Native.WINDOWPOS>(lParam);
-                pos.hwndInsertAfter = Native.HWND_BOTTOM;
-                pos.flags &= ~(uint)Native.SWP.NOZORDER;
-                Marshal.StructureToPtr(pos, lParam, false);
-                break;
-            }
-
             case Native.WM_NCHITTEST when _resizable:
             {
                 // Borderless plus AllowsTransparency has no resize frame. This is
@@ -166,6 +165,12 @@ internal sealed class Placer
         var y = (short)(((long)lParam >> 16) & 0xFFFF);
 
         var band = (int)Math.Ceiling(6 * Scale);
+
+        // The bottom-right corner, where the grip is drawn, is a bigger
+        // target than a 6dip rim: that is where people reach to resize.
+        var grip = (int)Math.Ceiling(16 * Scale);
+        if (x >= r.Right - grip && y >= r.Bottom - grip) return Native.HTBOTTOMRIGHT;
+
         var left = x < r.Left + band;
         var right = x >= r.Right - band;
         var top = y < r.Top + band;

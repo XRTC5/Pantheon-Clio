@@ -146,6 +146,14 @@
                         AutomationProperties.Name="Numbers">
                     <TextBlock Text="1." FontSize="10" FontFamily="{StaticResource MonoFont}" />
                 </Button>
+                <Button Style="{StaticResource IconButton}" Click="Checklist_Click" ToolTip="Checklist (Ctrl+Shift+9)"
+                        AutomationProperties.Name="Checklist">
+                    <Grid Width="10" Height="10">
+                        <Rectangle Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.1" />
+                        <Path Data="M 2.2,5.2 L 4.2,7.2 L 7.8,2.8" StrokeThickness="1.2"
+                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                    </Grid>
+                </Button>
                 <Button x:Name="SymbolButton" Style="{StaticResource IconButton}" Click="Symbols_Click"
                         ToolTip="Maths and special characters" AutomationProperties.Name="Symbols">
                     <TextBlock Text="&#x03A9;" FontSize="11" />
@@ -208,6 +216,9 @@
                       HorizontalAlignment="Left" VerticalAlignment="Bottom" />
                 <Path Data="M 9,0 L 9,9 L 0,9" Stroke="{DynamicResource NoteAccent}" StrokeThickness="1"
                       HorizontalAlignment="Right" VerticalAlignment="Bottom" />
+                <!-- Resize grip. The hit area (16dip) is answered by Placer, not by this. -->
+                <Path Data="M 8,1 L 1,8 M 8,4.5 L 4.5,8" Stroke="{DynamicResource NoteAccentSoft}" StrokeThickness="1"
+                      HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,3,3" />
             </Grid>
 
             <!-- ====================================================== confirm -->
