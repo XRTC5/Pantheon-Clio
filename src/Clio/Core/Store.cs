@@ -95,8 +95,15 @@ public sealed class ClioState
 /// </summary>
 internal static class Store
 {
+    /// <summary>
+    /// %APPDATA%\Clio, or CLIO_DATA when set (a portable copy, or a test run
+    /// that must not touch real notes). Setting APPDATA does NOT redirect it:
+    /// GetFolderPath asks the shell's known-folder API, not the environment.
+    /// </summary>
     public static readonly string Directory =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Clio");
+        Environment.GetEnvironmentVariable("CLIO_DATA") is { Length: > 0 } custom
+            ? custom
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Clio");
 
     private static readonly string FilePath = Path.Combine(Directory, "notes.json");
 

@@ -19,8 +19,24 @@ public partial class App : Application
     /// how Argus stops Clio without killing it mid-save, and leaves no dead
     /// icon in the tray the way a kill does.
     /// </summary>
-    private const string QuitEvent = "Local\\ClioQuit";
+    // A property, not a field: static fields initialise in source order, and
+    // Isolation is declared below.
+    private static string QuitEvent => "Local\\ClioQuit" + Isolation;
     private EventWaitHandle? _quit;
+
+    /// <summary>
+    /// Empty for the real Clio. For a copy pointed at its own data with
+    /// CLIO_DATA (a test build, a portable copy), a suffix that gives it its
+    /// own single-instance lock and quit signal, so it runs beside the real
+    /// Clio instead of displacing it. Learned the hard way: a profiling run
+    /// once had to close the user's Clio, and every note vanished from his
+    /// screen.
+    /// </summary>
+    private static readonly string Isolation =
+        Environment.GetEnvironmentVariable("CLIO_DATA") is { Length: > 0 } dir
+            ? "-" + Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(
+                System.Text.Encoding.UTF8.GetBytes(dir.ToLowerInvariant())))[..12]
+            : "";
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -31,7 +47,7 @@ public partial class App : Application
             return;
         }
 
-        _single = new Mutex(initiallyOwned: true, "Local\\ClioSingleInstance", out _owner);
+        _single = new Mutex(initiallyOwned: true, "Local\\ClioSingleInstance" + Isolation, out _owner);
         if (!_owner)
         {
             Shutdown();
@@ -67,8 +83,13 @@ public partial class App : Application
             (_, _) => Dispatcher.BeginInvoke(notes.Quit), null, Timeout.Infinite, executeOnlyOnce: true);
 
         // Off the UI thread: schtasks takes a moment and nothing waits on it.
-        var wanted = Store.State.RunOnStartup;
-        System.Threading.Tasks.Task.Run(() => Core.Startup.Sync(wanted));
+        // An isolated copy never touches the logon task: that belongs to the
+        // real install, and a test build would re-point it at itself.
+        if (Isolation.Length == 0)
+        {
+            var wanted = Store.State.RunOnStartup;
+            System.Threading.Tasks.Task.Run(() => Core.Startup.Sync(wanted));
+        }
 
         // Startup pages - XAML parsing, JIT, the JSON load - are never touched
         // again. Trim once everything has settled, not before.
