@@ -1,0 +1,151 @@
+<Window x:Class="Clio.NoteWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Clio note"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        AllowsTransparency="True"
+        Background="Transparent"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
+        TextOptions.TextFormattingMode="Display"
+        MinWidth="170" MinHeight="120"
+        Width="260" Height="240">
+
+    <!--
+        ResizeMode is NoResize because WPF's own resize handling assumes a
+        frame this window does not have. Resizing comes from Placer answering
+        WM_NCHITTEST on the rim, which Windows then drives natively.
+
+        AllowsTransparency is what lets the erase dissolve show the desktop
+        through the holes. It forces software rendering, which Clio uses for
+        the whole process anyway (see App.xaml.cs).
+    -->
+
+    <Border x:Name="Shell" Background="{StaticResource NoteBg}" CornerRadius="3"
+            BorderBrush="{DynamicResource NoteAccentSoft}" BorderThickness="1"
+            RenderTransformOrigin="0.5,0.5">
+        <Border.RenderTransform>
+            <ScaleTransform x:Name="ShellScale" ScaleX="1" ScaleY="1" />
+        </Border.RenderTransform>
+
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="28" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- Scanlines and a faint wash from the top: the projection. -->
+            <Rectangle Grid.RowSpan="3" Fill="{StaticResource Scanlines}" IsHitTestVisible="False" />
+            <Rectangle Grid.RowSpan="3" Fill="{DynamicResource NoteWash}" IsHitTestVisible="False" />
+
+            <!-- ======================================================= header -->
+            <Grid x:Name="Header" Background="Transparent" Cursor="SizeAll"
+                  MouseLeftButtonDown="Header_MouseDown">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
+                    <Rectangle Width="2" Height="10" Fill="{DynamicResource NoteAccent}" Margin="0,0,7,0" />
+                    <TextBlock x:Name="Serial" Text="REC 001" FontFamily="{StaticResource MonoFont}"
+                               FontSize="9.5" Foreground="{DynamicResource NoteAccent}" VerticalAlignment="Center" />
+                    <TextBlock x:Name="Stamp" Text="" FontFamily="{StaticResource MonoFont}" Margin="8,0,0,0"
+                               FontSize="9" Foreground="{StaticResource TextLow}" VerticalAlignment="Center" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="0,0,5,0" VerticalAlignment="Center">
+                    <Button Style="{StaticResource IconButton}" Click="Color_Click" ToolTip="Change colour" AutomationProperties.Name="Colour">
+                        <Ellipse Width="8" Height="8" Fill="{DynamicResource NoteAccent}" />
+                    </Button>
+                    <ToggleButton x:Name="DrawToggle" Style="{StaticResource IconToggle}"
+                                  Click="Draw_Click" ToolTip="Doodle (Ctrl+D)" AutomationProperties.Name="Doodle">
+                        <Path Data="M 1,11 L 3,7 L 9,1 L 11,3 L 5,9 Z M 3,7 L 5,9" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}"
+                              StrokeThickness="1.1" StrokeLineJoin="Round" Width="12" Height="12" />
+                    </ToggleButton>
+                    <Button Style="{StaticResource IconButton}" Click="Erase_Click" ToolTip="Erase this note" AutomationProperties.Name="Erase note">
+                        <Path Data="M 1,1 L 8,8 M 8,1 L 1,8" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                              StrokeThickness="1.2" Width="9" Height="9" />
+                    </Button>
+                </StackPanel>
+
+                <!-- A rule that fades out across the note, not a hard divider. -->
+                <Rectangle Grid.ColumnSpan="2" Height="1" VerticalAlignment="Bottom" Margin="10,0,10,0"
+                           Fill="{DynamicResource NoteRule}" />
+            </Grid>
+
+            <!-- ========================================================= body -->
+            <Grid x:Name="Body" Grid.Row="1" Margin="10,6,6,8">
+                <TextBlock x:Name="Placeholder" Text="record something.  /todo for a checkbox"
+                           FontFamily="{StaticResource UiFont}" FontSize="12.5" Margin="2,1,0,0"
+                           Foreground="{StaticResource TextFaint}" IsHitTestVisible="False" />
+
+                <TextBox x:Name="Editor" AutomationProperties.Name="Note text" Background="Transparent" BorderThickness="0" Padding="0"
+                         Foreground="{StaticResource TextHi}" CaretBrush="{DynamicResource NoteAccent}"
+                         SelectionBrush="{DynamicResource NoteAccent}" SelectionOpacity="0.3"
+                         FontFamily="{StaticResource UiFont}" FontSize="12.5"
+                         AcceptsReturn="True" AcceptsTab="True" TextWrapping="Wrap" UndoLimit="60"
+                         VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                         TextChanged="Editor_TextChanged"
+                         PreviewMouseLeftButtonDown="Editor_PreviewMouseDown">
+                    <TextBox.Template>
+                        <ControlTemplate TargetType="TextBox">
+                            <ScrollViewer x:Name="PART_ContentHost" Focusable="False" />
+                        </ControlTemplate>
+                    </TextBox.Template>
+                </TextBox>
+
+                <!-- InkCanvas goes here, created only for a note that is drawn on. -->
+                <Grid x:Name="InkHost" />
+            </Grid>
+
+            <!-- ================================================== draw toolbar -->
+            <Border x:Name="DrawBar" Grid.Row="2" Visibility="Collapsed" Margin="8,0,8,7"
+                    BorderBrush="{StaticResource Rule}" BorderThickness="0,1,0,0" Padding="0,6,0,0">
+                <DockPanel LastChildFill="False">
+                    <StackPanel x:Name="Swatches" Orientation="Horizontal" DockPanel.Dock="Left" />
+                    <ToggleButton x:Name="EraserToggle" Style="{StaticResource IconToggle}" Margin="4,0,0,0"
+                                  Click="Eraser_Click" ToolTip="Erase strokes" DockPanel.Dock="Left">
+                        <Path Data="M 1,8 L 6,3 L 9,6 L 6,9 L 3,9 Z" StrokeThickness="1.1"
+                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" />
+                    </ToggleButton>
+                    <Button Style="{StaticResource TextButton}" Content="DONE" Padding="8,2" FontSize="9"
+                            Click="Draw_Done" DockPanel.Dock="Right" />
+                    <Button Style="{StaticResource TextButton}" Content="CLEAR" Padding="8,2" FontSize="9"
+                            Click="ClearInk_Click" DockPanel.Dock="Right" Margin="0,0,4,0" />
+                </DockPanel>
+            </Border>
+
+            <!-- HUD corner brackets, over everything, never hit-tested. -->
+            <Grid Grid.RowSpan="3" IsHitTestVisible="False" Margin="3">
+                <Path Data="M 0,9 L 0,0 L 9,0" Stroke="{DynamicResource NoteAccent}" StrokeThickness="1"
+                      HorizontalAlignment="Left" VerticalAlignment="Top" />
+                <Path Data="M 0,0 L 9,0 L 9,9" Stroke="{DynamicResource NoteAccent}" StrokeThickness="1"
+                      HorizontalAlignment="Right" VerticalAlignment="Top" />
+                <Path Data="M 0,0 L 0,9 L 9,9" Stroke="{DynamicResource NoteAccent}" StrokeThickness="1"
+                      HorizontalAlignment="Left" VerticalAlignment="Bottom" />
+                <Path Data="M 9,0 L 9,9 L 0,9" Stroke="{DynamicResource NoteAccent}" StrokeThickness="1"
+                      HorizontalAlignment="Right" VerticalAlignment="Bottom" />
+            </Grid>
+
+            <!-- ====================================================== confirm -->
+            <Border x:Name="Confirm" Grid.RowSpan="3" Visibility="Collapsed" Background="#F2070B10"
+                    CornerRadius="3">
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                    <TextBlock x:Name="ConfirmTitle" Text="ERASE REC 001?" FontFamily="{StaticResource MonoFont}"
+                               FontSize="11" Foreground="{StaticResource TextHi}" HorizontalAlignment="Center" />
+                    <TextBlock Text="This cannot be undone." FontFamily="{StaticResource UiFont}" FontSize="10.5"
+                               Foreground="{StaticResource TextLow}" HorizontalAlignment="Center" Margin="0,4,0,12" />
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                        <Button Style="{StaticResource TextButton}" Content="KEEP" Click="Keep_Click" AutomationProperties.Name="Keep" Margin="0,0,8,0" />
+                        <Button Style="{StaticResource DangerButton}" Content="ERASE" Click="ConfirmErase_Click" AutomationProperties.Name="Confirm erase" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

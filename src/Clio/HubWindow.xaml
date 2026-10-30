@@ -1,0 +1,60 @@
+<Window x:Class="Clio.HubWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Clio"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        AllowsTransparency="True"
+        Background="Transparent"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
+        TextOptions.TextFormattingMode="Display"
+        Width="176" Height="46">
+
+    <!-- The hub. Click it to stow every note into it or release them all;
+         drag it to move it; right-click for the menu. -->
+
+    <Border x:Name="Shell" Background="{StaticResource BgRaised}" CornerRadius="3"
+            BorderBrush="{StaticResource AccentDim}" BorderThickness="1">
+        <Grid x:Name="Surface" Background="Transparent" Cursor="Hand"
+              MouseLeftButtonDown="Surface_Down" MouseMove="Surface_Move"
+              MouseLeftButtonUp="Surface_Up" MouseRightButtonUp="Surface_Menu">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="42" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <Rectangle Grid.ColumnSpan="3" Fill="{StaticResource Scanlines}" IsHitTestVisible="False" />
+
+            <!-- Nib in a bracket frame: the same mark as the icon. -->
+            <Grid Width="26" Height="26" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Path Data="M 0,7 L 0,0 L 7,0 M 19,0 L 26,0 L 26,7 M 26,19 L 26,26 L 19,26 M 7,26 L 0,26 L 0,19"
+                      Stroke="{StaticResource AccentDim}" StrokeThickness="1.2" />
+                <Path Data="M 13,5 L 18,13 L 13,21 L 8,13 Z" Fill="{StaticResource Accent}" />
+                <Path Data="M 13,12 L 13,21" Stroke="{StaticResource BgRaised}" StrokeThickness="1.2" />
+                <Ellipse Width="3" Height="3" Fill="{StaticResource BgRaised}" Margin="0,0,0,2" />
+            </Grid>
+
+            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                <TextBlock Text="CLIO" FontFamily="{StaticResource MonoFont}" FontSize="11.5" FontWeight="SemiBold"
+                           Foreground="{StaticResource TextHi}" />
+                <TextBlock x:Name="Status" Text="0 RECORDS" FontFamily="{StaticResource MonoFont}" FontSize="9"
+                           Foreground="{StaticResource TextLow}" Margin="0,1,0,0" />
+            </StackPanel>
+
+            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,7,0">
+                <Button Style="{StaticResource IconButton}" Click="New_Click" AutomationProperties.Name="New note" ToolTip="New note (Ctrl+N in a note)">
+                    <Path Data="M 4.5,0 L 4.5,9 M 0,4.5 L 9,4.5" StrokeThickness="1.3"
+                          Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                </Button>
+                <Button x:Name="ToggleButton" Style="{StaticResource IconButton}" Click="Toggle_Click" AutomationProperties.Name="Stow or release">
+                    <Path x:Name="Chevron" Data="M 0,0 L 4.5,4.5 L 9,0" StrokeThickness="1.3"
+                          Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                </Button>
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>

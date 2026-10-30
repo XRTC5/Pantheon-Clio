@@ -1,0 +1,17 @@
+<Application x:Class="Clio.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             ShutdownMode="OnExplicitShutdown">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Theme.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- Defaults for the per-note accent. Each note overrides these in
+                 its own Resources; the hub and menus use them as-is. -->
+            <SolidColorBrush x:Key="NoteAccent" Color="#22D3EE" />
+            <SolidColorBrush x:Key="NoteAccentSoft" Color="#6622D3EE" />
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>
