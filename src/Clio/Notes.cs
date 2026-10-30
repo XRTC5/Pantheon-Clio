@@ -34,11 +34,25 @@ internal sealed class Notes
 
         if (!Store.State.Collapsed)
             foreach (var d in Store.State.Notes) Open(d).Show();
+
+        PurgeHistory();
+
+        // History expiry is measured in days, so an hourly look is plenty.
+        var purge = new DispatcherTimer(TimeSpan.FromHours(1), DispatcherPriority.Background,
+            (_, _) => PurgeHistory(), Dispatcher.CurrentDispatcher);
+        purge.Start();
     }
 
     // ------------------------------------------------------------- create
 
-    public void NewNote()
+    public void NewNote() => NewNote(null);
+
+    /// <summary>
+    /// A new note. From the hub it appears above the hub; from a note's + it
+    /// appears beside that note, so a run of notes can be made without going
+    /// back to the hub.
+    /// </summary>
+    public void NewNote(NoteWindow? from)
     {
         if (_animating) return;
 
@@ -52,7 +66,7 @@ internal sealed class Notes
         s.Collapsed = false;
         s.Serial++;
         var data = new NoteData { Number = s.Serial, Color = (s.Serial - 1) % NoteWindow.Accents.Length };
-        data.Rect = FreshRect();
+        data.Rect = from is null ? FreshRect() : BesideRect(from.Placer.Rect);
         s.Notes.Add(data);
         Store.Save();
 
@@ -85,6 +99,30 @@ internal sealed class Notes
         return new Native.RECT { Left = left, Top = top, Right = left + w, Bottom = top + h };
     }
 
+    /// <summary>To the right of the source note, else to its left, else offset down from it.</summary>
+    private static Native.RECT BesideRect(Native.RECT from)
+    {
+        var m = Monitors.Containing(from.Left + from.Width / 2, from.Top + from.Height / 2);
+        var s = m.Scale;
+        var w = (int)(NoteWidth * s);
+        var h = (int)(NoteHeight * s);
+        var gap = (int)(12 * s);
+        var wa = m.WorkArea;
+
+        int left, top = from.Top;
+        if (from.Right + gap + w <= wa.Right) left = from.Right + gap;
+        else if (from.Left - gap - w >= wa.Left) left = from.Left - gap - w;
+        else
+        {
+            left = from.Left + (int)(26 * s);
+            top = from.Top + (int)(26 * s);
+        }
+
+        left = Math.Clamp(left, wa.Left, Math.Max(wa.Left, wa.Right - w));
+        top = Math.Clamp(top, wa.Top, Math.Max(wa.Top, wa.Bottom - h));
+        return new Native.RECT { Left = left, Top = top, Right = left + w, Bottom = top + h };
+    }
+
     private NoteWindow Open(NoteData d)
     {
         // A note last left on a display that is no longer attached comes back
@@ -100,16 +138,111 @@ internal sealed class Notes
 
     // ------------------------------------------------------------- erase
 
+    /// <summary>Dissolves the note and moves it to History, where it lives out its retention.</summary>
     public void Erase(NoteWindow w)
     {
+        w.Flush();
         w.Dissolve(() =>
         {
-            Store.State.Notes.Remove(w.Data);
-            Store.Save();
+            var d = w.Data;
+            d.Erased = DateTime.Now;
+            Store.State.Notes.Remove(d);
+            Store.State.History.Add(d);
             w.Close();
+            Store.Save();
             _hub.Refresh();
+            RefreshDialogs();
             TrimSoon();
         });
+    }
+
+    // ------------------------------------------------------------- history
+
+    public void Restore(NoteData d)
+    {
+        var s = Store.State;
+        s.History.Remove(d);
+        d.Erased = null;
+        s.Notes.Add(d);
+        Store.Save();
+
+        if (!s.Collapsed)
+        {
+            var w = Open(d);
+            w.Show();
+            w.Activate();
+        }
+        _hub.Refresh();
+        RefreshDialogs();
+    }
+
+    public void DeleteForGood(NoteData d)
+    {
+        Store.State.History.Remove(d);
+        Store.Save();
+        RefreshDialogs();
+    }
+
+    public void EmptyHistory()
+    {
+        Store.State.History.Clear();
+        Store.Save();
+        RefreshDialogs();
+        TrimSoon();
+    }
+
+    public void PurgeHistory()
+    {
+        if (!Store.State.Purge()) return;
+        Store.Save();
+        RefreshDialogs();
+    }
+
+    // ------------------------------------------------------------- dialogs
+
+    private SettingsWindow? _settings;
+    private HistoryWindow? _history;
+
+    public void OpenSettings()
+    {
+        if (_settings is not null) { _settings.Activate(); return; }
+        _settings = new SettingsWindow(this);
+        _settings.Closed += (_, _) => { _settings = null; TrimSoon(); };
+        ShowNearHub(_settings, resizable: false);
+    }
+
+    public void OpenHistory()
+    {
+        PurgeHistory();
+        if (_history is not null) { _history.Activate(); return; }
+        _history = new HistoryWindow(this);
+        _history.Closed += (_, _) => { _history = null; TrimSoon(); };
+        ShowNearHub(_history, resizable: true);
+    }
+
+    private void RefreshDialogs()
+    {
+        _settings?.Refresh();
+        _history?.Refresh();
+    }
+
+    /// <summary>Above the hub, right-aligned with it; below it if there is no room above.</summary>
+    private void ShowNearHub(Window dialog, bool resizable)
+    {
+        var placer = new Placer(dialog, resizable, followLayer: false);
+        placer.Attach();
+        dialog.Show();
+
+        var hub = _hub.Placer.Rect;
+        var r = placer.Rect;
+        var m = Monitors.Containing(hub.Left + hub.Width / 2, hub.Top + hub.Height / 2);
+        var gap = (int)(10 * m.Scale);
+
+        var left = Math.Clamp(hub.Right - r.Width, m.WorkArea.Left, Math.Max(m.WorkArea.Left, m.WorkArea.Right - r.Width));
+        var top = hub.Top - r.Height - gap;
+        if (top < m.WorkArea.Top) top = Math.Min(hub.Bottom + gap, m.WorkArea.Bottom - r.Height);
+        placer.MoveBy(left, top);
+        dialog.Activate();
     }
 
     // ------------------------------------------------------ stow / release
@@ -221,6 +354,7 @@ internal sealed class Notes
         Store.Save();
         _hub.Placer.ApplyLayer();
         foreach (var w in _open.Values) w.Placer.ApplyLayer();
+        RefreshDialogs();
     }
 
     // ------------------------------------------------------------- menu
@@ -239,6 +373,8 @@ internal sealed class Notes
         var top = Item("Keep notes on top", () => SetLayer(s.Layer == Layer.OnTop ? Layer.Desktop : Layer.OnTop));
         top.IsChecked = s.Layer == Layer.OnTop;
         menu.Items.Add(top);
+        menu.Items.Add(Item(s.History.Count == 0 ? "History" : $"History ({s.History.Count})", OpenHistory));
+        menu.Items.Add(Item("Settings", OpenSettings));
 
         menu.Items.Add(new Separator());
         menu.Items.Add(Item("Quit Clio", Quit));

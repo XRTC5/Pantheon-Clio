@@ -20,7 +20,12 @@ public sealed class NoteData
     public string Id { get; set; } = Guid.NewGuid().ToString("N")[..8];
     /// <summary>Shown as REC 007. Never reused after a note is erased.</summary>
     public int Number { get; set; }
+    /// <summary>Plain text: what History previews and what an old notes.json held.</summary>
     public string Text { get; set; } = "";
+
+    /// <summary>The formatted document as XAML, or null for a note never formatted or typed in since v2.</summary>
+    public string? Rich { get; set; }
+
     public int Color { get; set; }
 
     /// <summary>Physical pixels. Restored verbatim, the Argus placement rule.</summary>
@@ -34,6 +39,9 @@ public sealed class NoteData
 
     public DateTime Created { get; set; } = DateTime.Now;
     public DateTime Edited { get; set; } = DateTime.Now;
+
+    /// <summary>When it was erased. Set only on notes in the History.</summary>
+    public DateTime? Erased { get; set; }
 
     [JsonIgnore]
     internal Native.RECT Rect
@@ -56,6 +64,20 @@ public sealed class ClioState
     public int Serial { get; set; }
 
     public List<NoteData> Notes { get; set; } = new();
+
+    /// <summary>Erased notes, kept for <see cref="HistoryDays"/> and then purged.</summary>
+    public List<NoteData> History { get; set; } = new();
+
+    public int HistoryDays { get; set; } = 5;
+
+    public bool RunOnStartup { get; set; } = true;
+
+    /// <summary>Drops History entries older than the retention. True if any went.</summary>
+    public bool Purge()
+    {
+        var cutoff = DateTime.Now.AddDays(-Math.Max(1, HistoryDays));
+        return History.RemoveAll(n => n.Erased is { } at && at < cutoff) > 0;
+    }
 }
 
 /// <summary>
@@ -106,11 +128,19 @@ internal static class Store
         _debounce.Start();
     }
 
+    /// <summary>
+    /// Raised just before a write. Open notes serialise their formatted text
+    /// here rather than on every keystroke: turning a FlowDocument into XAML is
+    /// the expensive part of a save, so it happens once per save, not per key.
+    /// </summary>
+    public static event Action? Flushing;
+
     public static void Save()
     {
         _debounce?.Stop();
         try
         {
+            Flushing?.Invoke();
             System.IO.Directory.CreateDirectory(Directory);
             var tmp = FilePath + ".tmp";
             File.WriteAllText(tmp, JsonSerializer.Serialize(State, Json));

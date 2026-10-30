@@ -34,13 +34,14 @@
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="28" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
             <!-- Scanlines and a faint wash from the top: the projection. -->
-            <Rectangle Grid.RowSpan="3" Fill="{StaticResource Scanlines}" IsHitTestVisible="False" />
-            <Rectangle Grid.RowSpan="3" Fill="{DynamicResource NoteWash}" IsHitTestVisible="False" />
+            <Rectangle Grid.RowSpan="4" Fill="{StaticResource Scanlines}" IsHitTestVisible="False" />
+            <Rectangle Grid.RowSpan="4" Fill="{DynamicResource NoteWash}" IsHitTestVisible="False" />
 
             <!-- ======================================================= header -->
             <Grid x:Name="Header" Background="Transparent" Cursor="SizeAll"
@@ -50,7 +51,7 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0" ClipToBounds="True">
                     <Rectangle Width="2" Height="10" Fill="{DynamicResource NoteAccent}" Margin="0,0,7,0" />
                     <TextBlock x:Name="Serial" Text="REC 001" FontFamily="{StaticResource MonoFont}"
                                FontSize="9.5" Foreground="{DynamicResource NoteAccent}" VerticalAlignment="Center" />
@@ -59,15 +60,30 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="0,0,5,0" VerticalAlignment="Center">
-                    <Button Style="{StaticResource IconButton}" Click="Color_Click" ToolTip="Change colour" AutomationProperties.Name="Colour">
-                        <Ellipse Width="8" Height="8" Fill="{DynamicResource NoteAccent}" />
+                    <Button Style="{StaticResource IconButton}" Click="New_Click" ToolTip="New note (Ctrl+N)"
+                            AutomationProperties.Name="New note" Width="20">
+                        <Path Data="M 4,0 L 4,8 M 0,4 L 8,4" StrokeThickness="1.2"
+                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
                     </Button>
-                    <ToggleButton x:Name="DrawToggle" Style="{StaticResource IconToggle}"
-                                  Click="Draw_Click" ToolTip="Doodle (Ctrl+D)" AutomationProperties.Name="Doodle">
+                    <ToggleButton x:Name="FormatToggle" Style="{StaticResource IconToggle}" Width="22"
+                                  Checked="Format_Click" Unchecked="Format_Click" ToolTip="Text formatting" AutomationProperties.Name="Format">
+                        <TextBlock Text="Aa" FontFamily="{StaticResource UiFont}" FontSize="10" FontWeight="SemiBold" />
+                    </ToggleButton>
+                    <Button x:Name="ColorButton" Style="{StaticResource IconButton}" Click="Color_Click"
+                            ToolTip="Colour" AutomationProperties.Name="Colour" Width="24">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="8" Height="8" Fill="{DynamicResource NoteAccent}" />
+                            <Path Data="M 0,0 L 2.5,2.5 L 5,0" Margin="3,1,0,0" StrokeThickness="1"
+                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                        </StackPanel>
+                    </Button>
+                    <ToggleButton x:Name="DrawToggle" Style="{StaticResource IconToggle}" Width="20"
+                                  Checked="Draw_Click" Unchecked="Draw_Click" ToolTip="Doodle (Ctrl+D)" AutomationProperties.Name="Doodle">
                         <Path Data="M 1,11 L 3,7 L 9,1 L 11,3 L 5,9 Z M 3,7 L 5,9" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}"
                               StrokeThickness="1.1" StrokeLineJoin="Round" Width="12" Height="12" />
                     </ToggleButton>
-                    <Button Style="{StaticResource IconButton}" Click="Erase_Click" ToolTip="Erase this note" AutomationProperties.Name="Erase note">
+                    <Button Style="{StaticResource IconButton}" Click="Erase_Click" ToolTip="Erase this note"
+                            AutomationProperties.Name="Erase note" Width="20">
                         <Path Data="M 1,1 L 8,8 M 8,1 L 1,8" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
                               StrokeThickness="1.2" Width="9" Height="9" />
                     </Button>
@@ -78,38 +94,100 @@
                            Fill="{DynamicResource NoteRule}" />
             </Grid>
 
+            <!-- ================================================== format bar -->
+            <!-- Folded away until Aa is pressed. Every shortcut works without it. -->
+            <WrapPanel x:Name="FormatBar" Grid.Row="1" Visibility="Collapsed" Margin="8,5,8,0">
+                <Button x:Name="FontButton" Style="{StaticResource IconButton}" Width="92" Click="Font_Click"
+                        ToolTip="Font" AutomationProperties.Name="Font" HorizontalContentAlignment="Stretch">
+                    <DockPanel Margin="5,0" Width="80">
+                        <Path DockPanel.Dock="Right" Data="M 0,0 L 2.5,2.5 L 5,0" StrokeThickness="1" VerticalAlignment="Center"
+                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                        <TextBlock x:Name="FontLabel" Text="Segoe UI" FontSize="10" TextTrimming="CharacterEllipsis" />
+                    </DockPanel>
+                </Button>
+                <Button x:Name="SizeButton" Style="{StaticResource IconButton}" Width="38" Click="Size_Click" Margin="2,0,4,0"
+                        ToolTip="Font size (Ctrl+Shift+. and Ctrl+Shift+,)" AutomationProperties.Name="Size">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock x:Name="SizeLabel" Text="10" FontSize="10" FontFamily="{StaticResource MonoFont}" />
+                        <Path Data="M 0,0 L 2.5,2.5 L 5,0" Margin="4,1,0,0" StrokeThickness="1" VerticalAlignment="Center"
+                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                    </StackPanel>
+                </Button>
+                <ToggleButton x:Name="BoldToggle" Style="{StaticResource IconToggle}" Checked="Bold_Click" Unchecked="Bold_Click"
+                              ToolTip="Bold (Ctrl+B)" AutomationProperties.Name="Bold">
+                    <TextBlock Text="B" FontWeight="Bold" FontSize="11" />
+                </ToggleButton>
+                <ToggleButton x:Name="ItalicToggle" Style="{StaticResource IconToggle}" Checked="Italic_Click" Unchecked="Italic_Click"
+                              ToolTip="Italic (Ctrl+I)" AutomationProperties.Name="Italic">
+                    <TextBlock Text="I" FontStyle="Italic" FontSize="11" FontFamily="Georgia" />
+                </ToggleButton>
+                <ToggleButton x:Name="UnderlineToggle" Style="{StaticResource IconToggle}" Checked="Underline_Click" Unchecked="Underline_Click"
+                              ToolTip="Underline (Ctrl+U)" AutomationProperties.Name="Underline">
+                    <TextBlock Text="U" TextDecorations="Underline" FontSize="11" />
+                </ToggleButton>
+                <ToggleButton x:Name="StrikeToggle" Style="{StaticResource IconToggle}" Checked="Strike_Click" Unchecked="Strike_Click"
+                              ToolTip="Strikethrough (Alt+Shift+5)" AutomationProperties.Name="Strikethrough">
+                    <TextBlock Text="S" TextDecorations="Strikethrough" FontSize="11" />
+                </ToggleButton>
+                <Button Style="{StaticResource IconButton}" Click="Super_Click" ToolTip="Superscript (Ctrl+.)"
+                        AutomationProperties.Name="Superscript">
+                    <TextBlock FontSize="10">x<Run Text="2" BaselineAlignment="Superscript" FontSize="7" /></TextBlock>
+                </Button>
+                <Button Style="{StaticResource IconButton}" Click="Sub_Click" ToolTip="Subscript (Ctrl+,)"
+                        AutomationProperties.Name="Subscript">
+                    <TextBlock FontSize="10">x<Run Text="2" BaselineAlignment="Subscript" FontSize="7" /></TextBlock>
+                </Button>
+                <Button Style="{StaticResource IconButton}" Click="Bullets_Click" ToolTip="Bulleted list (Ctrl+Shift+8)"
+                        AutomationProperties.Name="Bullets">
+                    <Path Data="M 0,1 L 1.5,1 M 3.5,1 L 10,1 M 0,4.5 L 1.5,4.5 M 3.5,4.5 L 10,4.5 M 0,8 L 1.5,8 M 3.5,8 L 10,8"
+                          StrokeThickness="1.3" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                </Button>
+                <Button Style="{StaticResource IconButton}" Click="Numbers_Click" ToolTip="Numbered list (Ctrl+Shift+7)"
+                        AutomationProperties.Name="Numbers">
+                    <TextBlock Text="1." FontSize="10" FontFamily="{StaticResource MonoFont}" />
+                </Button>
+                <Button x:Name="SymbolButton" Style="{StaticResource IconButton}" Click="Symbols_Click"
+                        ToolTip="Maths and special characters" AutomationProperties.Name="Symbols">
+                    <TextBlock Text="&#x03A9;" FontSize="11" />
+                </Button>
+                <Button Style="{StaticResource IconButton}" Click="Clear_Click" ToolTip="Clear formatting (Ctrl+\)"
+                        AutomationProperties.Name="Clear formatting">
+                    <TextBlock FontSize="10"><Run Text="T" /><Run Text="x" FontSize="7" /></TextBlock>
+                </Button>
+            </WrapPanel>
+
             <!-- ========================================================= body -->
-            <Grid x:Name="Body" Grid.Row="1" Margin="10,6,6,8">
+            <Grid x:Name="Body" Grid.Row="2" Margin="10,6,6,8">
                 <TextBlock x:Name="Placeholder" Text="record something.  /todo for a checkbox"
-                           FontFamily="{StaticResource UiFont}" FontSize="12.5" Margin="2,1,0,0"
+                           FontFamily="{StaticResource UiFont}" FontSize="13.33"
                            Foreground="{StaticResource TextFaint}" IsHitTestVisible="False" />
 
-                <TextBox x:Name="Editor" AutomationProperties.Name="Note text" Background="Transparent" BorderThickness="0" Padding="0"
-                         Foreground="{StaticResource TextHi}" CaretBrush="{DynamicResource NoteAccent}"
-                         SelectionBrush="{DynamicResource NoteAccent}" SelectionOpacity="0.3"
-                         FontFamily="{StaticResource UiFont}" FontSize="12.5"
-                         AcceptsReturn="True" AcceptsTab="True" TextWrapping="Wrap" UndoLimit="60"
-                         VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
-                         TextChanged="Editor_TextChanged"
-                         PreviewMouseLeftButtonDown="Editor_PreviewMouseDown">
-                    <TextBox.Template>
-                        <ControlTemplate TargetType="TextBox">
+                <RichTextBox x:Name="Editor" AutomationProperties.Name="Note text" Background="Transparent"
+                             BorderThickness="0" Padding="0"
+                             Foreground="{StaticResource TextHi}" CaretBrush="{DynamicResource NoteAccent}"
+                             SelectionBrush="{DynamicResource NoteAccent}" SelectionOpacity="0.3"
+                             AcceptsReturn="True" AcceptsTab="True" UndoLimit="60" IsDocumentEnabled="False"
+                             VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                             TextChanged="Editor_TextChanged" SelectionChanged="Editor_SelectionChanged"
+                             PreviewMouseLeftButtonDown="Editor_PreviewMouseDown">
+                    <RichTextBox.Template>
+                        <ControlTemplate TargetType="RichTextBox">
                             <ScrollViewer x:Name="PART_ContentHost" Focusable="False" />
                         </ControlTemplate>
-                    </TextBox.Template>
-                </TextBox>
+                    </RichTextBox.Template>
+                </RichTextBox>
 
                 <!-- InkCanvas goes here, created only for a note that is drawn on. -->
                 <Grid x:Name="InkHost" />
             </Grid>
 
             <!-- ================================================== draw toolbar -->
-            <Border x:Name="DrawBar" Grid.Row="2" Visibility="Collapsed" Margin="8,0,8,7"
+            <Border x:Name="DrawBar" Grid.Row="3" Visibility="Collapsed" Margin="8,0,8,7"
                     BorderBrush="{StaticResource Rule}" BorderThickness="0,1,0,0" Padding="0,6,0,0">
                 <DockPanel LastChildFill="False">
                     <StackPanel x:Name="Swatches" Orientation="Horizontal" DockPanel.Dock="Left" />
                     <ToggleButton x:Name="EraserToggle" Style="{StaticResource IconToggle}" Margin="4,0,0,0"
-                                  Click="Eraser_Click" ToolTip="Erase strokes" DockPanel.Dock="Left">
+                                  Checked="Eraser_Click" Unchecked="Eraser_Click" ToolTip="Erase strokes" DockPanel.Dock="Left">
                         <Path Data="M 1,8 L 6,3 L 9,6 L 6,9 L 3,9 Z" StrokeThickness="1.1"
                               Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" />
                     </ToggleButton>
@@ -121,7 +199,7 @@
             </Border>
 
             <!-- HUD corner brackets, over everything, never hit-tested. -->
-            <Grid Grid.RowSpan="3" IsHitTestVisible="False" Margin="3">
+            <Grid Grid.RowSpan="4" IsHitTestVisible="False" Margin="3">
                 <Path Data="M 0,9 L 0,0 L 9,0" Stroke="{DynamicResource NoteAccent}" StrokeThickness="1"
                       HorizontalAlignment="Left" VerticalAlignment="Top" />
                 <Path Data="M 0,0 L 9,0 L 9,9" Stroke="{DynamicResource NoteAccent}" StrokeThickness="1"
@@ -133,12 +211,12 @@
             </Grid>
 
             <!-- ====================================================== confirm -->
-            <Border x:Name="Confirm" Grid.RowSpan="3" Visibility="Collapsed" Background="#F2070B10"
+            <Border x:Name="Confirm" Grid.RowSpan="4" Visibility="Collapsed" Background="#F2070B10"
                     CornerRadius="3">
                 <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                     <TextBlock x:Name="ConfirmTitle" Text="ERASE REC 001?" FontFamily="{StaticResource MonoFont}"
                                FontSize="11" Foreground="{StaticResource TextHi}" HorizontalAlignment="Center" />
-                    <TextBlock Text="This cannot be undone." FontFamily="{StaticResource UiFont}" FontSize="10.5"
+                    <TextBlock x:Name="ConfirmSub" Text="Kept in History for 5 days." FontFamily="{StaticResource UiFont}" FontSize="10.5"
                                Foreground="{StaticResource TextLow}" HorizontalAlignment="Center" Margin="0,4,0,12" />
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                         <Button Style="{StaticResource TextButton}" Content="KEEP" Click="Keep_Click" AutomationProperties.Name="Keep" Margin="0,0,8,0" />

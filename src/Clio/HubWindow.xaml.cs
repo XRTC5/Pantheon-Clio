@@ -9,7 +9,7 @@ namespace Clio;
 public partial class HubWindow : Window
 {
     /// <summary>Logical size; converted to physical pixels per monitor.</summary>
-    public const double LogicalWidth = 176, LogicalHeight = 46;
+    public const double LogicalWidth = 198, LogicalHeight = 46;
 
     private readonly Notes _notes;
     private Point? _pressAt;
@@ -123,4 +123,5 @@ public partial class HubWindow : Window
 
     private void New_Click(object sender, RoutedEventArgs e) => _notes.NewNote();
     private void Toggle_Click(object sender, RoutedEventArgs e) => _notes.Toggle();
+    private void Settings_Click(object sender, RoutedEventArgs e) => _notes.OpenSettings();
 }

@@ -1,0 +1,93 @@
+<Window x:Class="Clio.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Clio settings"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        AllowsTransparency="True"
+        Background="Transparent"
+        Topmost="True"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
+        TextOptions.TextFormattingMode="Display"
+        SizeToContent="Height"
+        Width="270">
+
+    <Border Background="{StaticResource BgRaised}" BorderBrush="{StaticResource AccentDim}"
+            BorderThickness="1" CornerRadius="3">
+        <Grid>
+            <Rectangle Fill="{StaticResource Scanlines}" IsHitTestVisible="False" />
+            <StackPanel>
+                <!-- header -->
+                <Grid Background="Transparent" Height="30" MouseLeftButtonDown="Header_MouseDown" Cursor="SizeAll">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
+                        <Rectangle Width="2" Height="10" Fill="{StaticResource Accent}" Margin="0,0,7,0" />
+                        <TextBlock Text="CLIO  /  SETTINGS" FontFamily="{StaticResource MonoFont}" FontSize="9.5"
+                                   Foreground="{StaticResource Accent}" />
+                    </StackPanel>
+                    <Button Style="{StaticResource IconButton}" HorizontalAlignment="Right" Margin="0,0,6,0"
+                            Click="Close_Click" AutomationProperties.Name="Close settings" Width="20">
+                        <Path Data="M 1,1 L 8,8 M 8,1 L 1,8" StrokeThickness="1.2" Width="9" Height="9"
+                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                    </Button>
+                    <Rectangle Height="1" VerticalAlignment="Bottom" Margin="12,0" Fill="{StaticResource Rule}" />
+                </Grid>
+
+                <!-- launch at start -->
+                <Grid Margin="14,12,14,0">
+                    <StackPanel>
+                        <TextBlock Text="Launch at start" FontFamily="{StaticResource UiFont}" FontSize="12"
+                                   Foreground="{StaticResource TextHi}" />
+                        <TextBlock Text="Opens Clio when you sign in to Windows." FontFamily="{StaticResource UiFont}"
+                                   FontSize="10" Foreground="{StaticResource TextLow}" Margin="0,2,0,0" />
+                    </StackPanel>
+                    <ToggleButton x:Name="StartupSwitch" Style="{StaticResource Switch}" HorizontalAlignment="Right"
+                                  VerticalAlignment="Center" Checked="Startup_Click" Unchecked="Startup_Click"
+                                  AutomationProperties.Name="Launch at start" />
+                </Grid>
+
+                <!-- on top -->
+                <Grid Margin="14,14,14,0">
+                    <StackPanel>
+                        <TextBlock Text="Keep notes on top" FontFamily="{StaticResource UiFont}" FontSize="12"
+                                   Foreground="{StaticResource TextHi}" />
+                        <TextBlock Text="Off: notes sit on the desktop, like Argus." FontFamily="{StaticResource UiFont}"
+                                   FontSize="10" Foreground="{StaticResource TextLow}" Margin="0,2,0,0" />
+                    </StackPanel>
+                    <ToggleButton x:Name="TopSwitch" Style="{StaticResource Switch}" HorizontalAlignment="Right"
+                                  VerticalAlignment="Center" Checked="Top_Click" Unchecked="Top_Click"
+                                  AutomationProperties.Name="Keep notes on top" />
+                </Grid>
+
+                <!-- history -->
+                <Rectangle Height="1" Fill="{StaticResource RuleSoft}" Margin="14,14,14,0" />
+                <Grid Margin="14,12,14,0">
+                    <StackPanel>
+                        <TextBlock Text="History" FontFamily="{StaticResource UiFont}" FontSize="12"
+                                   Foreground="{StaticResource TextHi}" />
+                        <TextBlock Text="Erased notes are kept this long, then deleted." FontFamily="{StaticResource UiFont}"
+                                   FontSize="10" Foreground="{StaticResource TextLow}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                   MaxWidth="150" HorizontalAlignment="Left" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <Button Style="{StaticResource IconButton}" Click="Fewer_Click" AutomationProperties.Name="Fewer days">
+                            <Path Data="M 0,0 L 8,0" StrokeThickness="1.3" Margin="0,1,0,0"
+                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                        </Button>
+                        <TextBlock x:Name="DaysLabel" Text="5 days" Width="50" TextAlignment="Center"
+                                   FontFamily="{StaticResource MonoFont}" FontSize="10.5" VerticalAlignment="Center"
+                                   Foreground="{StaticResource TextHi}" AutomationProperties.Name="History days" />
+                        <Button Style="{StaticResource IconButton}" Click="More_Click" AutomationProperties.Name="More days">
+                            <Path Data="M 4,0 L 4,8 M 0,4 L 8,4" StrokeThickness="1.3"
+                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                        </Button>
+                    </StackPanel>
+                </Grid>
+
+                <Button x:Name="HistoryButton" Style="{StaticResource TextButton}" Content="OPEN HISTORY"
+                        Margin="14,12,14,14" Click="History_Click" AutomationProperties.Name="Open history" />
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>

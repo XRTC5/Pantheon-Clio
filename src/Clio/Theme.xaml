@@ -101,6 +101,56 @@
         </Setter>
     </Style>
 
+    <!-- A dropdown row: flat until hovered. -->
+    <Style x:Key="PickRow" TargetType="Button">
+        <Setter Property="Foreground" Value="{StaticResource TextHi}" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Chrome" Background="Transparent" CornerRadius="2" Padding="8,4">
+                        <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Chrome" Property="Background" Value="#0F1922" />
+                            <Setter Property="Foreground" Value="{StaticResource Accent}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- On/off switch for settings: a track and a knob, accent when on. -->
+    <Style x:Key="Switch" TargetType="ToggleButton">
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Grid Width="30" Height="16" Background="Transparent">
+                        <Border x:Name="Track" CornerRadius="8" BorderThickness="1"
+                                Background="#0C1218" BorderBrush="{StaticResource Rule}" />
+                        <Ellipse x:Name="Knob" Width="10" Height="10" Margin="3,0"
+                                 HorizontalAlignment="Left" Fill="{StaticResource TextLow}" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Track" Property="Background" Value="#0B2B33" />
+                            <Setter TargetName="Track" Property="BorderBrush" Value="{StaticResource Accent}" />
+                            <Setter TargetName="Knob" Property="HorizontalAlignment" Value="Right" />
+                            <Setter TargetName="Knob" Property="Fill" Value="{StaticResource Accent}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <Style x:Key="TextButton" TargetType="Button">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderBrush" Value="{StaticResource Rule}" />

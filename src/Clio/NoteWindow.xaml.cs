@@ -1,7 +1,9 @@
 using System.IO;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Documents;
 using System.Windows.Ink;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -12,19 +14,19 @@ using Clio.Core;
 namespace Clio;
 
 /// <summary>
-/// One note. Owns its text, its doodle layer and its own erase dissolve;
-/// stowing, releasing and creating notes belong to <see cref="Notes"/>.
+/// One note. Owns its text, its formatting, its doodle layer and its own erase
+/// dissolve; stowing, releasing, creating and History belong to <see cref="Notes"/>.
 /// </summary>
 public partial class NoteWindow : Window
 {
     /// <summary>Note accents. Cyan first: it is Argus's accent.</summary>
-    public static readonly Color[] Accents =
+    public static readonly (string Name, Color Color)[] Accents =
     {
-        Color.FromRgb(0x22, 0xD3, 0xEE), // cyan
-        Color.FromRgb(0xF5, 0xA5, 0x24), // amber
-        Color.FromRgb(0xA7, 0x8B, 0xFA), // violet
-        Color.FromRgb(0x34, 0xD3, 0x99), // green
-        Color.FromRgb(0xFB, 0x71, 0x85), // rose
+        ("Cyan", Color.FromRgb(0x22, 0xD3, 0xEE)),
+        ("Amber", Color.FromRgb(0xF5, 0xA5, 0x24)),
+        ("Violet", Color.FromRgb(0xA7, 0x8B, 0xFA)),
+        ("Green", Color.FromRgb(0x34, 0xD3, 0x99)),
+        ("Rose", Color.FromRgb(0xFB, 0x71, 0x85)),
     };
 
     /// <summary>Pen colours. A near-white first, so ink reads on every accent.</summary>
@@ -37,6 +39,28 @@ public partial class NoteWindow : Window
         Color.FromRgb(0xFB, 0x71, 0x85),
     };
 
+    private static readonly string[] Fonts =
+    {
+        "Segoe UI Variable Text", "Segoe UI", "Bahnschrift", "Calibri", "Arial",
+        "Georgia", "Cambria", "Cambria Math", "Times New Roman",
+        "Cascadia Mono", "Consolas", "Segoe Print", "Ink Free",
+    };
+
+    /// <summary>Points, as Docs shows them. WPF sizes are 1/96 inch, so they are converted.</summary>
+    private static readonly double[] Sizes = { 8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 36 };
+    private const double DefaultPt = 10;
+    private static double Px(double pt) => pt * 96 / 72;
+    private static double Pt(double px) => Math.Round(px * 72 / 96 * 2) / 2;
+
+    private static readonly (string Title, string Chars)[] Symbols =
+    {
+        ("MATHS", "± × ÷ = ≠ ≈ ≡ < > ≤ ≥ ∞ √ ∛ ∑ ∏ ∫ ∮ ∂ ∆ ∇ ′ ″ ° ‰ ½ ⅓ ¼ ¾ ⁿ ² ³ ¹ ⁰ ₀ ₁ ₂ ₃"),
+        ("LOGIC AND SETS", "∈ ∉ ⊂ ⊃ ⊆ ⊇ ∪ ∩ ∅ ∀ ∃ ¬ ∧ ∨ ⊕ ∴ ∵ ℕ ℤ ℚ ℝ ℂ"),
+        ("GREEK", "α β γ δ ε ζ η θ λ μ ν ξ π ρ σ τ φ χ ψ ω Γ Δ Θ Λ Π Σ Φ Ψ Ω"),
+        ("ARROWS", "→ ← ↑ ↓ ↔ ↕ ⇒ ⇐ ⇔ ↦ ↗ ↘ ⟶"),
+        ("SPECIAL", "• · … — – § ¶ † ‡ © ® ™ € £ $ ¥ ¢ ✓ ✗ ★ ☆ ♥ ⚠ ☐ ☑ № ∼ ¦"),
+    };
+
     private const char Open = '☐';   // ☐
     private const char Done = '☑';   // ☑
 
@@ -44,6 +68,15 @@ public partial class NoteWindow : Window
     private InkCanvas? _ink;
     private Color _pen = Inks[0];
     private bool _suppress;
+    private bool _dirty;
+
+    /// <summary>
+    /// Set while code moves a toggle to match the document. Toggles react to
+    /// Checked/Unchecked rather than Click, because UI Automation (screen
+    /// readers, and the test driver) flips IsChecked without raising Click;
+    /// this keeps the toolbar's own sync from being read as a user press.
+    /// </summary>
+    private bool _syncing;
 
     internal NoteData Data { get; }
     internal Placer Placer { get; }
@@ -57,9 +90,7 @@ public partial class NoteWindow : Window
         Serial.Text = $"REC {data.Number:000}";
         ConfirmTitle.Text = $"ERASE REC {data.Number:000}?";
 
-        _suppress = true;
-        Editor.Text = data.Text;
-        _suppress = false;
+        LoadDocument();
         RefreshMeta();
         ApplyAccent();
         BuildSwatches();
@@ -76,15 +107,104 @@ public partial class NoteWindow : Window
             Store.Save();
         };
 
+        Store.Flushing += Flush;
+        Closed += (_, _) => Store.Flushing -= Flush;
+
+        // Pasting a picture would put a bitmap in notes.json and in memory for
+        // good. Text, with its formatting, is what a note holds.
+        DataObject.AddPastingHandler(Editor, (_, e) =>
+        {
+            if (!e.DataObject.GetDataPresent(DataFormats.UnicodeText)) e.CancelCommand();
+        });
+
         SourceInitialized += (_, _) => Placer.ApplyLayer();
         PreviewKeyDown += OnKey;
+    }
+
+    // ------------------------------------------------------------- document
+
+    private FlowDocument NewDocument()
+    {
+        var doc = new FlowDocument
+        {
+            PagePadding = new Thickness(0),
+            FontFamily = (FontFamily)FindResource("UiFont"),
+            FontSize = Px(DefaultPt),
+            Foreground = (Brush)FindResource("TextHi"),
+        };
+        doc.Resources.Add(typeof(Paragraph), new Style(typeof(Paragraph))
+        {
+            Setters = { new Setter(Block.MarginProperty, new Thickness(0)) },
+        });
+        doc.Resources.Add(typeof(List), new Style(typeof(List))
+        {
+            Setters =
+            {
+                new Setter(Block.MarginProperty, new Thickness(0)),
+                new Setter(Block.PaddingProperty, new Thickness(18, 0, 0, 0)),
+            },
+        });
+        return doc;
+    }
+
+    private void LoadDocument()
+    {
+        _suppress = true;
+        var doc = NewDocument();
+        Editor.Document = doc;
+
+        if (Data.Rich is { } xaml)
+        {
+            try
+            {
+                using var ms = new MemoryStream(Encoding.UTF8.GetBytes(xaml));
+                new TextRange(doc.ContentStart, doc.ContentEnd).Load(ms, DataFormats.Xaml);
+            }
+            catch (Exception ex)
+            {
+                // Keep the words even if the formatting is lost.
+                Log.Error($"formatting for {Data.Id} unreadable; loading plain text", ex);
+                SetPlain(doc, Data.Text);
+            }
+        }
+        else
+        {
+            // A note from before formatting existed: plain text, one paragraph a line.
+            SetPlain(doc, Data.Text);
+        }
+        _suppress = false;
+    }
+
+    private static void SetPlain(FlowDocument doc, string text)
+    {
+        doc.Blocks.Clear();
+        foreach (var line in text.Replace("\r\n", "\n").Split('\n'))
+            doc.Blocks.Add(new Paragraph(new Run(line)));
+    }
+
+    private string PlainText()
+    {
+        var t = new TextRange(Editor.Document.ContentStart, Editor.Document.ContentEnd).Text;
+        return t.TrimEnd('\r', '\n');
+    }
+
+    /// <summary>Called by Store just before it writes: the one place XAML is produced.</summary>
+    internal void Flush()
+    {
+        if (!_dirty) return;
+        _dirty = false;
+
+        Data.Text = PlainText();
+        using var ms = new MemoryStream();
+        new TextRange(Editor.Document.ContentStart, Editor.Document.ContentEnd).Save(ms, DataFormats.Xaml);
+        Data.Rich = Encoding.UTF8.GetString(ms.ToArray());
     }
 
     // ---------------------------------------------------------------- look
 
     private void ApplyAccent()
     {
-        var c = Accents[Math.Abs(Data.Color) % Accents.Length];
+        var c = Accents[Math.Abs(Data.Color) % Accents.Length].Color;
 
         Resources["NoteAccent"] = Frozen(new SolidColorBrush(c));
         Resources["NoteAccentSoft"] = Frozen(new SolidColorBrush(Color.FromArgb(0x66, c.R, c.G, c.B)));
@@ -104,18 +224,43 @@ public partial class NoteWindow : Window
         return f;
     }
 
+    /// <summary>The header shows when the note was made; the tooltip adds the last edit.</summary>
     private void RefreshMeta()
     {
-        var t = Data.Edited;
-        Stamp.Text = t.Date == DateTime.Today ? t.ToString("HH:mm") : t.ToString("dd MMM").ToUpperInvariant();
-        Placeholder.Visibility = Editor.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+        // The year lives in the tooltip: with it, the stamp collides with the
+        // header buttons at the default note width.
+        Stamp.Text = Data.Created.ToString("d MMM HH:mm").ToUpperInvariant();
+        Stamp.ToolTip = $"Created {Data.Created:ddd d MMM yyyy, HH:mm}\nEdited {Data.Edited:ddd d MMM yyyy, HH:mm}";
+        var empty = Editor.Document.Blocks.Count <= 1 && PlainText().Length == 0;
+        Placeholder.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void Color_Click(object sender, RoutedEventArgs e)
     {
-        Data.Color = (Data.Color + 1) % Accents.Length;
-        ApplyAccent();
-        Store.SaveSoon();
+        var list = new StackPanel();
+        for (var i = 0; i < Accents.Length; i++)
+        {
+            var index = i;
+            var (name, c) = Accents[i];
+            var row = new StackPanel { Orientation = Orientation.Horizontal };
+            row.Children.Add(new Ellipse
+            {
+                Width = 10, Height = 10, Fill = Frozen(new SolidColorBrush(c)), Margin = new Thickness(0, 0, 8, 0),
+            });
+            row.Children.Add(new TextBlock
+            {
+                Text = name, FontSize = 11.5, FontWeight = index == Data.Color ? FontWeights.SemiBold : FontWeights.Normal,
+            });
+            var pick = Picker.Row(this, row, () =>
+            {
+                Data.Color = index;
+                ApplyAccent();
+                Store.SaveSoon();
+            });
+            System.Windows.Automation.AutomationProperties.SetName(pick, name);
+            list.Children.Add(pick);
+        }
+        Picker.CloseOnPick(list, Picker.Open(ColorButton, list));
     }
 
     // ---------------------------------------------------------------- text
@@ -124,39 +269,296 @@ public partial class NoteWindow : Window
     {
         if (_suppress) return;
 
-        // "/todo" becomes a checkbox glyph. Replaced through SelectedText so it
-        // lands in the undo stack as one edit, not as a wholesale Text reset.
-        // Looped, because a paste can carry several at once.
-        int at;
-        while ((at = Editor.Text.IndexOf("/todo", StringComparison.OrdinalIgnoreCase)) >= 0)
-        {
-            var len = at + 5 < Editor.Text.Length && Editor.Text[at + 5] == ' ' ? 6 : 5;
-            _suppress = true;
-            Editor.Select(at, len);
-            Editor.SelectedText = Open + " ";
-            Editor.CaretIndex = at + 2;
-            _suppress = false;
-        }
+        ConvertTodos();
 
-        Data.Text = Editor.Text;
+        _dirty = true;
         Data.Edited = DateTime.Now;
         RefreshMeta();
+        RefreshFormatState();
         Store.SaveSoon();
+    }
+
+    /// <summary>
+    /// "/todo" becomes a checkbox glyph. Looped, because a paste can carry
+    /// several. Done through the TextRange so each lands in the undo stack.
+    /// </summary>
+    private void ConvertTodos()
+    {
+        _suppress = true;
+        try
+        {
+            while (Find("/todo") is { } hit)
+            {
+                if (hit.End.GetTextInRun(LogicalDirection.Forward).StartsWith(' '))
+                    hit = new TextRange(hit.Start, hit.End.GetPositionAtOffset(1)!);
+                hit.Text = Open + " ";
+                Editor.CaretPosition = hit.End;
+            }
+        }
+        finally
+        {
+            _suppress = false;
+        }
+    }
+
+    private TextRange? Find(string needle)
+    {
+        for (var p = Editor.Document.ContentStart; p is not null; p = p.GetNextContextPosition(LogicalDirection.Forward))
+        {
+            if (p.GetPointerContext(LogicalDirection.Forward) != TextPointerContext.Text) continue;
+            var run = p.GetTextInRun(LogicalDirection.Forward);
+            var at = run.IndexOf(needle, StringComparison.OrdinalIgnoreCase);
+            if (at < 0) continue;
+            var start = p.GetPositionAtOffset(at)!;
+            return new TextRange(start, start.GetPositionAtOffset(needle.Length)!);
+        }
+        return null;
     }
 
     /// <summary>A click on a checkbox glyph ticks it, without moving the caret there.</summary>
     private void Editor_PreviewMouseDown(object sender, MouseButtonEventArgs e)
     {
-        var i = Editor.GetCharacterIndexFromPoint(e.GetPosition(Editor), snapToText: false);
-        if (i < 0 || i >= Editor.Text.Length) return;
+        var at = e.GetPosition(Editor);
+        var p = Editor.GetPositionFromPoint(at, snapToText: false);
+        if (p is null) return;
 
-        var ch = Editor.Text[i];
-        if (ch != Open && ch != Done) return;
+        foreach (var dir in new[] { LogicalDirection.Forward, LogicalDirection.Backward })
+        {
+            var run = p.GetTextInRun(dir);
+            if (run.Length == 0) continue;
+            var ch = dir == LogicalDirection.Forward ? run[0] : run[^1];
+            if (ch != Open && ch != Done) continue;
 
-        Editor.Select(i, 1);
-        Editor.SelectedText = (ch == Open ? Done : Open).ToString();
-        Editor.Select(i + 1, 0);
-        e.Handled = true;
+            var other = dir == LogicalDirection.Forward ? p.GetPositionAtOffset(1) : p.GetPositionAtOffset(-1);
+            if (other is null) continue;
+            var glyph = dir == LogicalDirection.Forward ? new TextRange(p, other) : new TextRange(other, p);
+
+            glyph.Text = (ch == Open ? Done : Open).ToString();
+            e.Handled = true;
+            return;
+        }
+    }
+
+    // ---------------------------------------------------------- formatting
+
+    private void Format_Click(object sender, RoutedEventArgs e)
+    {
+        if (_syncing) return;
+        FormatBar.Visibility = FormatToggle.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        RefreshFormatState();
+    }
+
+    private void Editor_SelectionChanged(object sender, RoutedEventArgs e) => RefreshFormatState();
+
+    /// <summary>The toolbar mirrors whatever the caret or selection is sitting in.</summary>
+    private void RefreshFormatState()
+    {
+        if (FormatBar.Visibility != Visibility.Visible) return;
+        var sel = Editor.Selection;
+        _syncing = true;
+
+        BoldToggle.IsChecked = sel.GetPropertyValue(TextElement.FontWeightProperty) is FontWeight w
+                               && w.ToOpenTypeWeight() >= FontWeights.SemiBold.ToOpenTypeWeight();
+        ItalicToggle.IsChecked = sel.GetPropertyValue(TextElement.FontStyleProperty) is FontStyle s && s == FontStyles.Italic;
+        UnderlineToggle.IsChecked = HasDecoration(TextDecorationLocation.Underline);
+        StrikeToggle.IsChecked = HasDecoration(TextDecorationLocation.Strikethrough);
+
+        FontLabel.Text = sel.GetPropertyValue(TextElement.FontFamilyProperty) is FontFamily f
+            ? f.Source.Split(',')[0].Trim()
+            : "mixed";
+        SizeLabel.Text = sel.GetPropertyValue(TextElement.FontSizeProperty) is double px ? Pt(px).ToString("0.#") : "-";
+        _syncing = false;
+    }
+
+    private bool HasDecoration(TextDecorationLocation where) =>
+        Editor.Selection.GetPropertyValue(Inline.TextDecorationsProperty) is TextDecorationCollection c
+        && c.Any(d => d.Location == where);
+
+    private void Apply(DependencyProperty property, object value)
+    {
+        Editor.Selection.ApplyPropertyValue(property, value);
+        Editor.Focus();
+        _dirty = true;
+        Store.SaveSoon();
+        RefreshFormatState();
+    }
+
+    private void ToggleBold() =>
+        Apply(TextElement.FontWeightProperty, BoldNow() ? FontWeights.Normal : FontWeights.Bold);
+
+    private bool BoldNow() =>
+        Editor.Selection.GetPropertyValue(TextElement.FontWeightProperty) is FontWeight w
+        && w.ToOpenTypeWeight() >= FontWeights.SemiBold.ToOpenTypeWeight();
+
+    private void ToggleItalic() =>
+        Apply(TextElement.FontStyleProperty,
+            Editor.Selection.GetPropertyValue(TextElement.FontStyleProperty) is FontStyle s && s == FontStyles.Italic
+                ? FontStyles.Normal
+                : FontStyles.Italic);
+
+    /// <summary>Underline and strikethrough share one collection; toggling one keeps the other.</summary>
+    private void ToggleDecoration(TextDecorationLocation where)
+    {
+        var current = Editor.Selection.GetPropertyValue(Inline.TextDecorationsProperty) as TextDecorationCollection;
+        var next = new TextDecorationCollection(current?.Where(d => d.Location != where) ?? Enumerable.Empty<TextDecoration>());
+        if (!HasDecoration(where))
+            next.Add(where == TextDecorationLocation.Underline ? TextDecorations.Underline[0] : TextDecorations.Strikethrough[0]);
+        Apply(Inline.TextDecorationsProperty, next);
+    }
+
+    /// <summary>
+    /// Superscript and subscript as raised or lowered text at 70% size, which
+    /// works in every font. OpenType variants would be prettier but silently do
+    /// nothing in a font without them.
+    /// </summary>
+    private void ToggleBaseline(BaselineAlignment target)
+    {
+        var sel = Editor.Selection;
+        var size = sel.GetPropertyValue(TextElement.FontSizeProperty) is double px ? px : Px(DefaultPt);
+        var on = sel.GetPropertyValue(Inline.BaselineAlignmentProperty) is BaselineAlignment b && b == target;
+
+        sel.ApplyPropertyValue(Inline.BaselineAlignmentProperty, on ? BaselineAlignment.Baseline : target);
+        Apply(TextElement.FontSizeProperty, on ? size / 0.7 : size * 0.7);
+    }
+
+    private void StepSize(int direction)
+    {
+        var current = Editor.Selection.GetPropertyValue(TextElement.FontSizeProperty) is double px ? Pt(px) : DefaultPt;
+        var next = direction > 0
+            ? Sizes.FirstOrDefault(s => s > current, Sizes[^1])
+            : Sizes.LastOrDefault(s => s < current, Sizes[0]);
+        Apply(TextElement.FontSizeProperty, Px(next));
+    }
+
+    private void Bold_Click(object sender, RoutedEventArgs e) { if (!_syncing) ToggleBold(); }
+    private void Italic_Click(object sender, RoutedEventArgs e) { if (!_syncing) ToggleItalic(); }
+    private void Underline_Click(object sender, RoutedEventArgs e) { if (!_syncing) ToggleDecoration(TextDecorationLocation.Underline); }
+    private void Strike_Click(object sender, RoutedEventArgs e) { if (!_syncing) ToggleDecoration(TextDecorationLocation.Strikethrough); }
+    private void Super_Click(object sender, RoutedEventArgs e) => ToggleBaseline(BaselineAlignment.Superscript);
+    private void Sub_Click(object sender, RoutedEventArgs e) => ToggleBaseline(BaselineAlignment.Subscript);
+    private void Bullets_Click(object sender, RoutedEventArgs e) => Run(EditingCommands.ToggleBullets);
+    private void Numbers_Click(object sender, RoutedEventArgs e) => Run(EditingCommands.ToggleNumbering);
+
+    private void Clear_Click(object sender, RoutedEventArgs e) => ClearFormatting();
+
+    private void ClearFormatting()
+    {
+        Editor.Selection.ClearAllProperties();
+        Editor.Focus();
+        _dirty = true;
+        Store.SaveSoon();
+        RefreshFormatState();
+    }
+
+    private void Run(RoutedUICommand command)
+    {
+        command.Execute(null, Editor);
+        Editor.Focus();
+    }
+
+    private void Font_Click(object sender, RoutedEventArgs e)
+    {
+        var list = new StackPanel { MinWidth = 170 };
+        foreach (var name in Fonts)
+        {
+            var family = new FontFamily(name);
+            list.Children.Add(Picker.Row(this,
+                new TextBlock { Text = name, FontFamily = family, FontSize = 13 },
+                () => Apply(TextElement.FontFamilyProperty, family)));
+        }
+        Picker.CloseOnPick(list, Picker.Open(FontButton, list));
+    }
+
+    private void Size_Click(object sender, RoutedEventArgs e)
+    {
+        var list = new StackPanel { MinWidth = 56 };
+        foreach (var pt in Sizes)
+        {
+            list.Children.Add(Picker.Row(this,
+                new TextBlock { Text = pt.ToString("0"), FontFamily = (FontFamily)FindResource("MonoFont"), FontSize = 11 },
+                () => Apply(TextElement.FontSizeProperty, Px(pt))));
+        }
+        Picker.CloseOnPick(list, Picker.Open(SizeButton, list));
+    }
+
+    /// <summary>A grid of maths and special characters, grouped. Stays open so several can go in at once.</summary>
+    private void Symbols_Click(object sender, RoutedEventArgs e)
+    {
+        var panel = new StackPanel { Width = 264 };
+        foreach (var (title, chars) in Symbols)
+        {
+            panel.Children.Add(Picker.Label(this, title));
+            var grid = new UniformGrid { Columns = 10 };
+            foreach (var sym in chars.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var b = new Button
+                {
+                    Style = (Style)FindResource("PickRow"),
+                    Content = new TextBlock { Text = sym, FontSize = 13, HorizontalAlignment = HorizontalAlignment.Center },
+                    HorizontalContentAlignment = HorizontalAlignment.Center,
+                    ToolTip = $"U+{char.ConvertToUtf32(sym, 0):X4}",
+                };
+                b.Click += (_, _) => Insert(sym);
+                grid.Children.Add(b);
+            }
+            panel.Children.Add(grid);
+        }
+        Picker.Open(SymbolButton, panel, maxHeight: 360);
+    }
+
+    private void Insert(string text)
+    {
+        Editor.Selection.Text = text;
+        Editor.CaretPosition = Editor.Selection.End;
+        Editor.Focus();
+    }
+
+    // ---------------------------------------------------------------- keys
+
+    /// <summary>
+    /// Google Docs shortcuts. Ctrl+B / I / U and Ctrl+Z / Y are the RichTextBox's
+    /// own; these are the rest of the Docs set that WPF does not have, or has on
+    /// a different key.
+    /// </summary>
+    private void OnKey(object sender, KeyEventArgs e)
+    {
+        var mods = Keyboard.Modifiers;
+        var ctrl = (mods & ModifierKeys.Control) != 0;
+        var shift = (mods & ModifierKeys.Shift) != 0;
+        var alt = (mods & ModifierKeys.Alt) != 0;
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+
+        bool Handle(Action a) { a(); return true; }
+
+        e.Handled = (ctrl, shift, alt, key) switch
+        {
+            (true, false, false, Key.N) => Handle(() => _notes.NewNote(this)),
+            (true, false, false, Key.D) => Handle(() => SetDrawing(_ink is null || !_ink.IsHitTestVisible)),
+            (true, false, false, Key.B) => Handle(ToggleBold),
+            (true, false, false, Key.I) => Handle(ToggleItalic),
+            (true, false, false, Key.U) => Handle(() => ToggleDecoration(TextDecorationLocation.Underline)),
+            (false, true, true, Key.D5) => Handle(() => ToggleDecoration(TextDecorationLocation.Strikethrough)),
+            (true, true, false, Key.X) => Handle(() => ToggleDecoration(TextDecorationLocation.Strikethrough)),
+            (true, false, false, Key.OemPeriod) => Handle(() => ToggleBaseline(BaselineAlignment.Superscript)),
+            (true, false, false, Key.OemComma) => Handle(() => ToggleBaseline(BaselineAlignment.Subscript)),
+            (true, true, false, Key.OemPeriod) => Handle(() => StepSize(+1)),
+            (true, true, false, Key.OemComma) => Handle(() => StepSize(-1)),
+            (true, true, false, Key.D7) => Handle(() => Run(EditingCommands.ToggleNumbering)),
+            (true, true, false, Key.D8) => Handle(() => Run(EditingCommands.ToggleBullets)),
+            (true, true, false, Key.L) => Handle(() => Run(EditingCommands.AlignLeft)),
+            (true, true, false, Key.E) => Handle(() => Run(EditingCommands.AlignCenter)),
+            (true, true, false, Key.R) => Handle(() => Run(EditingCommands.AlignRight)),
+            (true, true, false, Key.J) => Handle(() => Run(EditingCommands.AlignJustify)),
+            (true, false, false, Key.Oem5) => Handle(ClearFormatting),
+            (false, false, false, Key.Escape) => Handle(Escape),
+            _ => false,
+        };
+    }
+
+    private void Escape()
+    {
+        if (Confirm.Visibility == Visibility.Visible) Confirm.Visibility = Visibility.Collapsed;
+        else if (_ink?.IsHitTestVisible == true) SetDrawing(false);
     }
 
     // ---------------------------------------------------------------- move
@@ -170,24 +572,12 @@ public partial class NoteWindow : Window
 
     private static T? FindParent<T>(DependencyObject d) where T : DependencyObject
     {
-        for (var cur = d; cur is not null; cur = VisualTreeHelper.GetParent(cur))
+        for (var cur = d; cur is not null; cur = cur is Visual ? VisualTreeHelper.GetParent(cur) : LogicalTreeHelper.GetParent(cur))
             if (cur is T hit) return hit;
         return null;
     }
 
-    private void OnKey(object sender, KeyEventArgs e)
-    {
-        var ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
-
-        if (ctrl && e.Key == Key.N) { _notes.NewNote(); e.Handled = true; }
-        else if (ctrl && e.Key == Key.D) { SetDrawing(_ink is null || !_ink.IsHitTestVisible); e.Handled = true; }
-        else if (e.Key == Key.Escape)
-        {
-            if (Confirm.Visibility == Visibility.Visible) Confirm.Visibility = Visibility.Collapsed;
-            else if (_ink?.IsHitTestVisible == true) SetDrawing(false);
-            e.Handled = true;
-        }
-    }
+    private void New_Click(object sender, RoutedEventArgs e) => _notes.NewNote(this);
 
     // ---------------------------------------------------------------- ink
 
@@ -243,7 +633,9 @@ public partial class NoteWindow : Window
         _ink.Background = on ? Brushes.Transparent : null;
         _ink.IsHitTestVisible = on;
         DrawBar.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+        _syncing = true;
         DrawToggle.IsChecked = on;
+        _syncing = false;
 
         if (!on && _ink.Strokes.Count == 0)
         {
@@ -255,11 +647,17 @@ public partial class NoteWindow : Window
         }
     }
 
-    private void Draw_Click(object sender, RoutedEventArgs e) => SetDrawing(DrawToggle.IsChecked == true);
+    private void Draw_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_syncing) SetDrawing(DrawToggle.IsChecked == true);
+    }
     private void Draw_Done(object sender, RoutedEventArgs e) => SetDrawing(false);
     private void ClearInk_Click(object sender, RoutedEventArgs e) => _ink?.Strokes.Clear();
 
-    private void Eraser_Click(object sender, RoutedEventArgs e) => ApplyPen();
+    private void Eraser_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_syncing) ApplyPen();
+    }
 
     private void BuildSwatches()
     {
@@ -274,7 +672,9 @@ public partial class NoteWindow : Window
             b.Click += (_, _) =>
             {
                 _pen = (Color)b.Tag;
+                _syncing = true;
                 EraserToggle.IsChecked = false;
+                _syncing = false;
                 ApplyPen();
             };
             Swatches.Children.Add(b);
@@ -299,7 +699,13 @@ public partial class NoteWindow : Window
 
     // ---------------------------------------------------------------- erase
 
-    private void Erase_Click(object sender, RoutedEventArgs e) => Confirm.Visibility = Visibility.Visible;
+    private void Erase_Click(object sender, RoutedEventArgs e)
+    {
+        var days = Store.State.HistoryDays;
+        ConfirmSub.Text = $"Kept in History for {days} day{(days == 1 ? "" : "s")}.";
+        Confirm.Visibility = Visibility.Visible;
+    }
+
     private void Keep_Click(object sender, RoutedEventArgs e) => Confirm.Visibility = Visibility.Collapsed;
     private void ConfirmErase_Click(object sender, RoutedEventArgs e) => _notes.Erase(this);
 
@@ -346,7 +752,7 @@ public partial class NoteWindow : Window
         }
         Array.Sort(keys, order);
 
-        var c = Accents[Math.Abs(Data.Color) % Accents.Length];
+        var c = Accents[Math.Abs(Data.Color) % Accents.Length].Color;
         const int a = 0xE6;
         var spark = (a << 24) | ((c.R * a / 255) << 16) | ((c.G * a / 255) << 8) | (c.B * a / 255);
         var band = Math.Max(1, n / 12);

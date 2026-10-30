@@ -18,13 +18,19 @@ internal sealed class Placer
 {
     private readonly Window _window;
     private readonly bool _resizable;
+    private readonly bool _followLayer;
     private IntPtr _hwnd;
     private bool _positioning;
 
-    public Placer(Window window, bool resizable)
+    /// <param name="followLayer">
+    /// False for a dialog (settings, history): it must come to the front when
+    /// opened, whatever layer the notes live on.
+    /// </param>
+    public Placer(Window window, bool resizable, bool followLayer = true)
     {
         _window = window;
         _resizable = resizable;
+        _followLayer = followLayer;
     }
 
     public IntPtr Handle => _hwnd;
@@ -88,7 +94,7 @@ internal sealed class Placer
 
     public void ApplyLayer()
     {
-        if (_hwnd == IntPtr.Zero) return;
+        if (_hwnd == IntPtr.Zero || !_followLayer) return;
         var after = Store.State.Layer == Layer.OnTop ? Native.HWND_TOPMOST : Native.HWND_NOTOPMOST;
         Native.SetWindowPos(_hwnd, after, 0, 0, 0, 0,
             (uint)(Native.SWP.NOMOVE | Native.SWP.NOSIZE | Native.SWP.NOACTIVATE));
@@ -113,7 +119,7 @@ internal sealed class Placer
     {
         switch (msg)
         {
-            case Native.WM_WINDOWPOSCHANGING when Store.State.Layer == Layer.Desktop && !_positioning:
+            case Native.WM_WINDOWPOSCHANGING when _followLayer && Store.State.Layer == Layer.Desktop && !_positioning:
             {
                 // Desktop layer: whatever tries to raise the window - a click,
                 // a focus change - is rewritten to "stay at the bottom".
