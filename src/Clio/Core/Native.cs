@@ -180,4 +180,114 @@ internal static class Native
         try { EmptyWorkingSet(GetCurrentProcess()); }
         catch (Exception ex) { Log.Warn($"working set trim failed: {ex.Message}"); }
     }
+
+    // ---------------------------------------------------------- sleeping notes
+    // A raw layered window for a note that is asleep (see Ghost). Measured
+    // 2026-10-30: 0.06 MB private each at 650x600, against 3.26 MB for a live
+    // WPF note, because once UpdateLayeredWindow has handed the pixels over
+    // the compositor holds them and our copy can be freed.
+
+    public delegate IntPtr WndProc(IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam);
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    public struct WNDCLASSEX
+    {
+        public int cbSize;
+        public int style;
+        public WndProc lpfnWndProc;
+        public int cbClsExtra, cbWndExtra;
+        public IntPtr hInstance, hIcon, hCursor, hbrBackground;
+        public string? lpszMenuName;
+        public string lpszClassName;
+        public IntPtr hIconSm;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct POINT { public int X, Y; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SIZE { public int cx, cy; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct BLENDFUNCTION { public byte BlendOp, BlendFlags, SourceConstantAlpha, AlphaFormat; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct BITMAPINFOHEADER
+    {
+        public int biSize, biWidth, biHeight;
+        public short biPlanes, biBitCount;
+        public int biCompression, biSizeImage, biXPelsPerMeter, biYPelsPerMeter, biClrUsed, biClrImportant;
+    }
+
+    public const int WS_EX_LAYERED    = 0x00080000;
+    public const int WS_EX_NOACTIVATE = 0x08000000;
+    public const int WS_EX_TOPMOST    = 0x00000008;
+    public const uint WS_POPUP        = 0x80000000;
+    public const int SW_SHOWNOACTIVATE = 4;
+    public const int ULW_ALPHA = 2;
+    public const byte AC_SRC_ALPHA = 1;
+
+    public const uint WM_MOUSEMOVE     = 0x0200;
+    public const uint WM_LBUTTONDOWN   = 0x0201;
+    public const uint WM_RBUTTONDOWN   = 0x0204;
+    public const uint WM_MOUSEACTIVATE = 0x0021;
+    public const int MA_NOACTIVATE     = 3;
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern ushort RegisterClassEx(ref WNDCLASSEX wc);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern IntPtr CreateWindowEx(int exStyle, string className, string windowName, uint style,
+                                               int x, int y, int width, int height,
+                                               IntPtr parent, IntPtr menu, IntPtr instance, IntPtr param);
+
+    // The W entry point explicitly: the class is registered Unicode, and the
+    // default A binding mangled the window title to its first character.
+    [DllImport("user32.dll", EntryPoint = "DefWindowProcW")]
+    public static extern IntPtr DefWindowProc(IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    public static extern bool DestroyWindow(IntPtr hwnd);
+
+    [DllImport("user32.dll")]
+    public static extern bool ShowWindow(IntPtr hwnd, int cmd);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr LoadCursor(IntPtr instance, IntPtr name);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+    public static extern IntPtr GetModuleHandle(string? name);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetDC(IntPtr hwnd);
+
+    [DllImport("user32.dll")]
+    public static extern int ReleaseDC(IntPtr hwnd, IntPtr dc);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool UpdateLayeredWindow(IntPtr hwnd, IntPtr dstDc, ref POINT dst, ref SIZE size,
+                                                  IntPtr srcDc, ref POINT src, int key,
+                                                  ref BLENDFUNCTION blend, int flags);
+
+    /// <summary>Alpha only: no new pixels, no move. For fading a sleeping note during a stow.</summary>
+    [DllImport("user32.dll", EntryPoint = "UpdateLayeredWindow", SetLastError = true)]
+    public static extern bool UpdateLayeredWindowAlpha(IntPtr hwnd, IntPtr dstDc, IntPtr dst, IntPtr size,
+                                                       IntPtr srcDc, IntPtr src, int key,
+                                                       ref BLENDFUNCTION blend, int flags);
+
+    [DllImport("gdi32.dll")]
+    public static extern IntPtr CreateCompatibleDC(IntPtr dc);
+
+    [DllImport("gdi32.dll")]
+    public static extern IntPtr CreateDIBSection(IntPtr dc, ref BITMAPINFOHEADER info, uint usage,
+                                                 out IntPtr bits, IntPtr section, uint offset);
+
+    [DllImport("gdi32.dll")]
+    public static extern IntPtr SelectObject(IntPtr dc, IntPtr obj);
+
+    [DllImport("gdi32.dll")]
+    public static extern bool DeleteObject(IntPtr obj);
+
+    [DllImport("gdi32.dll")]
+    public static extern bool DeleteDC(IntPtr dc);
 }

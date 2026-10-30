@@ -93,7 +93,6 @@ public partial class NoteWindow : Window
         LoadDocument();
         RefreshMeta();
         ApplyAccent();
-        BuildSwatches();
 
         // Only a note that already carries a drawing pays for an InkCanvas.
         if (data.Ink is not null) EnsureInk();
@@ -121,6 +120,62 @@ public partial class NoteWindow : Window
         // that event has fired and a handler added now would never run.
         Placer.ApplyLayer();
         PreviewKeyDown += OnKey;
+
+        // Anything the user does keeps the note awake (see Notes.SleepIdle).
+        PreviewMouseMove += (_, _) => Touch();
+        PreviewKeyDown += (_, _) => Touch();
+        Activated += (_, _) => Touch();
+        Deactivated += (_, _) => Touch();
+    }
+
+    // -------------------------------------------------------------- sleep
+
+    /// <summary>Last time the user moved over, typed in, focused or left this note.</summary>
+    internal DateTime LastTouched { get; private set; } = DateTime.Now;
+
+    private void Touch() => LastTouched = DateTime.Now;
+
+    private bool _dissolving;
+
+    /// <summary>
+    /// Safe to swap for a picture: not focused, not under the mouse, and not
+    /// mid-doodle, mid-erase or mid-dissolve, any of which a picture would freeze.
+    /// </summary>
+    internal bool CanSleep =>
+        IsVisible && !IsActive && !IsMouseOver && !_dissolving
+        && DrawToggle.IsChecked != true && Confirm.Visibility != Visibility.Visible;
+
+    /// <summary>What a woken note restores so it wakes exactly as it slept.</summary>
+    internal (double Scroll, bool Format) View => (Editor.VerticalOffset, FormatToggle.IsChecked == true);
+
+    internal void RestoreView((double Scroll, bool Format) view)
+    {
+        if (view.Format) FormatToggle.IsChecked = true;
+        if (view.Scroll <= 0) return;
+
+        // Needs a layout pass first; Loaded comes before the first frame is
+        // drawn, so the woken note never shows the top and then jumps.
+        RoutedEventHandler? once = null;
+        once = (_, _) =>
+        {
+            Loaded -= once;
+            Editor.ScrollToVerticalOffset(view.Scroll);
+        };
+        Loaded += once;
+    }
+
+    /// <summary>The note as it looks now, premultiplied BGRA at the window's physical size.</summary>
+    internal int[]? Snapshot(Native.RECT rect)
+    {
+        if (!ReferenceEquals(Content, Shell) || rect.Width <= 0 || rect.Height <= 0) return null;
+
+        var dpi = VisualTreeHelper.GetDpi(Shell);
+        var shot = new RenderTargetBitmap(rect.Width, rect.Height, dpi.PixelsPerInchX, dpi.PixelsPerInchY,
+                                          PixelFormats.Pbgra32);
+        shot.Render(Shell);
+        var px = new int[rect.Width * rect.Height];
+        shot.CopyPixels(px, rect.Width * 4, 0);
+        return px;
     }
 
     // ------------------------------------------------------------- document
@@ -729,6 +784,8 @@ public partial class NoteWindow : Window
 
     private void SetDrawing(bool on)
     {
+        // Pen swatches are built on first use: most notes are never drawn on.
+        if (on && Swatches.Children.Count == 0) BuildSwatches();
         if (on) EnsureInk();
         if (_ink is null) return;
 
@@ -821,6 +878,7 @@ public partial class NoteWindow : Window
     /// </summary>
     internal void Dissolve(Action done)
     {
+        _dissolving = true;
         Confirm.Visibility = Visibility.Collapsed;
         DrawBar.Visibility = Visibility.Collapsed;
         UpdateLayout();

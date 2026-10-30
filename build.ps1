@@ -22,12 +22,16 @@ if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
     throw 'dotnet not found. Install it with: winget install --id Microsoft.DotNet.SDK.9'
 }
 
-# A running Clio locks its exe. Its notes are saved on every change, so
-# stopping it loses nothing.
+# A running Clio locks its exe. Ask it to save and exit first (--quit), so
+# the last second of typing, still inside the save debounce, is not lost;
+# kill only what is left after five seconds.
 $running = Get-Process Clio -ErrorAction SilentlyContinue
 if ($running) {
-    Write-Host 'Stopping the running Clio first...' -ForegroundColor DarkYellow
-    $running | Stop-Process -Force
+    Write-Host 'Asking the running Clio to save and exit...' -ForegroundColor DarkYellow
+    $exe = Join-Path $dist 'Clio.exe'
+    if (Test-Path $exe) { & $exe --quit }
+    $running | ForEach-Object { [void]$_.WaitForExit(5000) }
+    Get-Process Clio -ErrorAction SilentlyContinue | Stop-Process -Force
     Start-Sleep -Milliseconds 400
 }
 

@@ -19,6 +19,9 @@ internal sealed class Notes
     private static readonly TimeSpan Stagger = TimeSpan.FromMilliseconds(40);
 
     private readonly Dictionary<string, NoteWindow> _open = new();
+
+    /// <summary>Notes asleep as pictures (see Ghost). A note is in _open or here, never both.</summary>
+    private readonly Dictionary<string, Ghost> _ghosts = new();
     private readonly HubWindow _hub;
     private bool _animating;
 
@@ -41,6 +44,11 @@ internal sealed class Notes
         var purge = new DispatcherTimer(TimeSpan.FromHours(1), DispatcherPriority.Background,
             (_, _) => PurgeHistory(), Dispatcher.CurrentDispatcher);
         purge.Start();
+
+        // Idle notes go to sleep as pictures; see SleepIdle.
+        var sleep = new DispatcherTimer(TimeSpan.FromSeconds(5), DispatcherPriority.Background,
+            (_, _) => SleepIdle(), Dispatcher.CurrentDispatcher);
+        sleep.Start();
     }
 
     // ------------------------------------------------------------- create
@@ -88,7 +96,7 @@ internal sealed class Notes
         var s = m.Scale;
         var w = (int)(NoteWidth * s);
         var h = (int)(NoteHeight * s);
-        var step = (int)(26 * s) * (_open.Count % 6);
+        var step = (int)(26 * s) * ((_open.Count + _ghosts.Count) % 6);
 
         var left = hub.Right - w - step;
         var top = hub.Top - h - (int)(12 * s) - step;
@@ -134,6 +142,103 @@ internal sealed class Notes
         w.Closed += (_, _) => _open.Remove(d.Id);
         _open[d.Id] = w;
         return w;
+    }
+
+    // ------------------------------------------------------------- sleep
+
+    /// <summary>How long a note sits untouched before it becomes a picture.</summary>
+    private static readonly TimeSpan Idle = TimeSpan.FromSeconds(15);
+
+    /// <summary>Scroll position and format bar, kept across a sleep so a note wakes as it slept.</summary>
+    private readonly Dictionary<string, (double Scroll, bool Format)> _views = new();
+
+    /// <summary>
+    /// Puts every note nobody is using to sleep. A live note costs about
+    /// 3.3 MB, almost all of it pixel buffers; asleep it costs 0.06 MB (both
+    /// measured 2026-10-30). Waking is on the first mouse movement over it.
+    /// </summary>
+    private void SleepIdle()
+    {
+        if (_animating) return;
+        var now = DateTime.Now;
+        var slept = false;
+        foreach (var w in _open.Values.ToList())
+        {
+            if (!w.CanSleep || now - w.LastTouched < Idle) continue;
+            slept |= Sleep(w);
+        }
+        if (slept) TrimSoon();
+    }
+
+    private bool Sleep(NoteWindow w)
+    {
+        try
+        {
+            var rect = w.Placer.Rect;
+            if (w.Snapshot(rect) is not { } pixels) return false;
+
+            w.Flush();
+            Store.SaveSoon();
+            _views[w.Data.Id] = w.View;
+
+            var ghost = new Ghost(w.Data, pixels, rect, below: w.Placer.Handle,
+                                  topmost: Store.State.Layer == Layer.OnTop);
+            ghost.Woken += Wake;
+            _ghosts[w.Data.Id] = ghost;
+            w.Close();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"note {w.Data.Id} could not sleep; leaving it awake", ex);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Builds the real note under the picture, and removes the picture only
+    /// once the note has drawn its first frame, so there is never a gap.
+    /// </summary>
+    private void Wake(Ghost ghost)
+    {
+        if (!_ghosts.Remove(ghost.Data.Id)) return;
+
+        try
+        {
+            WakeUnder(ghost);
+        }
+        catch (Exception ex)
+        {
+            // A picture that cannot wake would be a note you can no longer
+            // touch. Drop it and open the note plainly instead.
+            Log.Error($"note {ghost.Data.Id} did not wake cleanly; reopening it", ex);
+            ghost.Dispose();
+            if (!_open.ContainsKey(ghost.Data.Id)) Open(ghost.Data).Show();
+        }
+    }
+
+    private void WakeUnder(Ghost ghost)
+    {
+        var w = Open(ghost.Data);
+        if (_views.Remove(ghost.Data.Id, out var view)) w.RestoreView(view);
+        Native.SetWindowPos(w.Placer.Handle, ghost.Handle, 0, 0, 0, 0,
+            (uint)(Native.SWP.NOMOVE | Native.SWP.NOSIZE | Native.SWP.NOACTIVATE));
+
+        var gone = false;
+        void Remove()
+        {
+            if (gone) return;
+            gone = true;
+            ghost.Dispose();
+        }
+
+        w.ContentRendered += (_, _) =>
+            w.Dispatcher.BeginInvoke(Remove, DispatcherPriority.Background);
+        // Belt and braces: never leave a picture over a live note.
+        new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background,
+            (s, _) => { ((DispatcherTimer)s!).Stop(); Remove(); }, w.Dispatcher).Start();
+
+        w.Show();
     }
 
     // ------------------------------------------------------------- erase
@@ -260,26 +365,40 @@ internal sealed class Notes
     {
         if (_animating) return;
         var windows = _open.Values.ToList();
+        var ghosts = _ghosts.Values.ToList();
+        _ghosts.Clear();
         Store.State.Collapsed = true;
         Store.Save();
         _hub.Refresh();
-        if (windows.Count == 0) return;
+        if (windows.Count + ghosts.Count == 0) return;
 
         var (hx, hy) = HubCentre();
-        var starts = windows.Select(w => w.Placer.Rect).ToList();
+        var starts = windows.Select(w => w.Placer.Rect).Concat(ghosts.Select(g => g.Rect)).ToList();
 
-        Animate(windows.Count, (i, p) =>
+        // Live notes shrink and fade; sleeping ones are pictures, so they fly
+        // and fade without the shrink. At this speed the eye does not tell.
+        Animate(starts.Count, (i, p) =>
         {
             var e = Tween.EaseIn(p);
             var r = starts[i];
-            var dx = hx - (r.Left + r.Width / 2);
-            var dy = hy - (r.Top + r.Height / 2);
-            windows[i].Placer.MoveBy(r.Left + (int)(dx * e), r.Top + (int)(dy * e));
-            windows[i].ShellScale.ScaleX = windows[i].ShellScale.ScaleY = 1 - 0.92 * e;
-            windows[i].Shell.Opacity = 1 - e;
+            var left = r.Left + (int)((hx - (r.Left + r.Width / 2)) * e);
+            var top = r.Top + (int)((hy - (r.Top + r.Height / 2)) * e);
+            if (i < windows.Count)
+            {
+                windows[i].Placer.MoveBy(left, top);
+                windows[i].ShellScale.ScaleX = windows[i].ShellScale.ScaleY = 1 - 0.92 * e;
+                windows[i].Shell.Opacity = 1 - e;
+            }
+            else
+            {
+                var g = ghosts[i - windows.Count];
+                g.MoveBy(left, top);
+                g.SetOpacity(1 - e);
+            }
         }, () =>
         {
             foreach (var w in windows) w.Close();
+            foreach (var g in ghosts) g.Dispose();
             TrimSoon();
         });
     }
@@ -296,7 +415,7 @@ internal sealed class Notes
         var windows = new List<NoteWindow>();
         foreach (var d in Store.State.Notes)
         {
-            if (_open.ContainsKey(d.Id)) continue;
+            if (_open.ContainsKey(d.Id) || _ghosts.ContainsKey(d.Id)) continue;
             var w = Open(d);
             w.ShellScale.ScaleX = w.ShellScale.ScaleY = 0.08;
             w.Shell.Opacity = 0;
@@ -354,6 +473,7 @@ internal sealed class Notes
         Store.Save();
         _hub.Placer.ApplyLayer();
         foreach (var w in _open.Values) w.Placer.ApplyLayer();
+        foreach (var g in _ghosts.Values) g.ApplyLayer(layer == Layer.OnTop);
         _hub.Refresh();
         RefreshDialogs();
     }
