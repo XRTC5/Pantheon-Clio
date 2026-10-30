@@ -354,6 +354,7 @@ internal sealed class Notes
         Store.Save();
         _hub.Placer.ApplyLayer();
         foreach (var w in _open.Values) w.Placer.ApplyLayer();
+        _hub.Refresh();
         RefreshDialogs();
     }
 

@@ -9,7 +9,7 @@ namespace Clio;
 public partial class HubWindow : Window
 {
     /// <summary>Logical size; converted to physical pixels per monitor.</summary>
-    public const double LogicalWidth = 198, LogicalHeight = 46;
+    public const double LogicalWidth = 220, LogicalHeight = 46;
 
     private readonly Notes _notes;
     private Point? _pressAt;
@@ -78,6 +78,23 @@ public partial class HubWindow : Window
         // Chevron points to where the notes will go: up and out, or down and in.
         Chevron.Data = Geometry.Parse(stowed ? "M 0,4.5 L 4.5,0 L 9,4.5" : "M 0,0 L 4.5,4.5 L 9,0");
         ToggleButton.ToolTip = stowed ? "Release all notes" : "Stow all notes";
+
+        var onTop = Store.State.Layer == Layer.OnTop;
+        _syncing = true;
+        TopToggle.IsChecked = onTop;
+        _syncing = false;
+        TopToggle.ToolTip = onTop
+            ? "Notes stay on top. Click to let them fall back behind other windows."
+            : "Keep notes on top of every window";
+    }
+
+    /// <summary>Set while Refresh moves the toggle, so that is not read as a press.</summary>
+    private bool _syncing;
+
+    // Checked/Unchecked rather than Click, so UI Automation can drive it too.
+    private void Top_Changed(object sender, RoutedEventArgs e)
+    {
+        if (!_syncing) _notes.SetLayer(TopToggle.IsChecked == true ? Layer.OnTop : Layer.Normal);
     }
 
     // ------------------------------------------------- click versus drag

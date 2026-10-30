@@ -11,7 +11,7 @@
         UseLayoutRounding="True"
         SnapsToDevicePixels="True"
         TextOptions.TextFormattingMode="Display"
-        Width="198" Height="46">
+        Width="220" Height="46">
 
     <!-- The hub. Click it to stow every note into it or release them all;
          drag it to move it; right-click for the menu. -->
@@ -54,6 +54,12 @@
                     <Path x:Name="Chevron" Data="M 0,0 L 4.5,4.5 L 9,0" StrokeThickness="1.3"
                           Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
                 </Button>
+                <ToggleButton x:Name="TopToggle" Style="{StaticResource IconToggle}"
+                              Checked="Top_Changed" Unchecked="Top_Changed" AutomationProperties.Name="Keep notes on top">
+                    <Path Data="M 0,3.5 L 4,0 L 8,3.5 M 0,7 L 4,3.5 L 8,7 M 0,10.5 L 4,7 L 8,10.5" StrokeThickness="1.2"
+                          StrokeLineJoin="Round"
+                          Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" />
+                </ToggleButton>
                 <Button Style="{StaticResource IconButton}" Click="Settings_Click" AutomationProperties.Name="Settings"
                         ToolTip="Settings and History">
                     <Grid Width="11" Height="11">
