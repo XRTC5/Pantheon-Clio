@@ -128,6 +128,14 @@ public partial class NoteWindow : Window
         PreviewKeyDown += OnKey;
         // Alt-drag reaches a picture behind the text; it must run before the editor sees the click.
         PreviewMouseLeftButtonDown += AltGrab;
+        PreviewMouseRightButtonUp += AltMenu;
+        // The text's own menu would open on the same Alt+right-click; give way
+        // when there is a picture under the pointer.
+        Editor.ContextMenuOpening += (_, e) =>
+        {
+            if (AltPictureAt(Mouse.GetPosition(Body)) is not null)
+                e.Handled = true;
+        };
 
         // Anything the user does keeps the note awake (see Notes.SleepIdle).
         PreviewMouseMove += (_, _) => Touch();

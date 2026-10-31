@@ -133,16 +133,35 @@ public partial class NoteWindow
     /// </summary>
     private void AltGrab(object sender, MouseButtonEventArgs e)
     {
-        if ((Keyboard.Modifiers & ModifierKeys.Alt) == 0 || Arranging) return;
-
-        var frame = Pictures()
-            .Where(f => new Rect(f.TranslatePoint(new Point(), Body), f.RenderSize).Contains(e.GetPosition(Body)))
-            .OrderByDescending(Panel.GetZIndex)
-            .FirstOrDefault();
-        if (frame is null) return;
-
+        if (AltPicture(e) is not { } frame) return;
         BeginDrag(frame, e.GetPosition(frame));
         e.Handled = true;
+    }
+
+    /// <summary>
+    /// Alt+right-click: the picture's own menu (stacking, remove) even when the
+    /// text is on top of it. Without this the text took the click and showed
+    /// its cut/copy/paste menu instead.
+    /// </summary>
+    private void AltMenu(object sender, MouseButtonEventArgs e)
+    {
+        if (AltPicture(e) is not { ContextMenu: { } menu } frame) return;
+        menu.PlacementTarget = frame;
+        menu.Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
+        menu.IsOpen = true;
+        e.Handled = true;
+    }
+
+    /// <summary>The topmost picture under the pointer while Alt is held, whatever is above it.</summary>
+    private Border? AltPicture(MouseEventArgs e) => AltPictureAt(e.GetPosition(Body));
+
+    private Border? AltPictureAt(Point at)
+    {
+        if ((Keyboard.Modifiers & ModifierKeys.Alt) == 0 || Arranging) return null;
+        return Pictures()
+            .Where(f => new Rect(f.TranslatePoint(new Point(), Body), f.RenderSize).Contains(at))
+            .OrderByDescending(Panel.GetZIndex)
+            .FirstOrDefault();
     }
 
     // ------------------------------------------------------------------ paste
