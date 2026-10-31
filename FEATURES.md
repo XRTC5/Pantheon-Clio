@@ -6,7 +6,7 @@ Every feature, however small, and whether it is confirmed working.
 - **[ ]** not yet confirmed: usually needs a real keyboard, a mouse drag or the real pointer, which
   the automated tests cannot produce. Try it and tick it.
 
-Last updated 2026-10-31, commit `a19086f`.
+Last updated 2026-10-31, phase 3 (Free Drag Writing).
 
 ## Notes and the hub
 
@@ -144,9 +144,22 @@ Last updated 2026-10-31, commit `a19086f`.
 - [ ] Drag a drawing
 - [ ] Right-click a drawing: restack or delete it
 
+### Free Drag Writing (tick)
+
+- [x] Free drag writing tick in the Advanced dropdown (test)
+- [ ] Click empty space to start a text box there
+- [x] Text boxes are saved and come back after a restart (test)
+- [x] Text boxes stay editable with the tick off; they just do not move (test)
+- [x] The Aa bar and keys act on whichever box you are typing in (test: bold went to the box only)
+- [x] An empty box removes itself when you click away (test)
+- [ ] Drag a box by the strip along its top
+- [ ] Widen a box from its bottom-right corner
+- [ ] Right-click inside a box: Cut, Copy, Paste, stacking, Delete text box
+- [ ] Alt+click a box to add it to a multi-selection
+- [ ] Undo and redo inside a box
+
 ### Coming next
 
-- [ ] Free Drag Writing: click empty space to start typing there; right-click a text box
 - [ ] Lasso select
 - [ ] Grouping
 

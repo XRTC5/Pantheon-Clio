@@ -99,6 +99,18 @@
                                       VerticalAlignment="Center" Checked="Images_Click" Unchecked="Images_Click"
                                       AutomationProperties.Name="Images" />
                     </Grid>
+                    <Grid x:Name="WritingRow" Margin="32,10,14,0">
+                        <StackPanel>
+                            <TextBlock Text="Free drag writing" FontFamily="{StaticResource UiFont}" FontSize="12"
+                                       Foreground="{StaticResource TextHi}" />
+                            <TextBlock Text="Click empty space to start typing there. Drag a text box by its top edge."
+                                       FontFamily="{StaticResource UiFont}" FontSize="10" Foreground="{StaticResource TextLow}"
+                                       Margin="0,2,0,0" TextWrapping="Wrap" MaxWidth="160" HorizontalAlignment="Left" />
+                        </StackPanel>
+                        <ToggleButton x:Name="WritingSwitch" Style="{StaticResource Switch}" HorizontalAlignment="Right"
+                                      VerticalAlignment="Center" Checked="Writing_Click" Unchecked="Writing_Click"
+                                      AutomationProperties.Name="Free drag writing" />
+                    </Grid>
                 </StackPanel>
 
                 <!-- history -->

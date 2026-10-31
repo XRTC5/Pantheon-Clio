@@ -30,9 +30,9 @@ namespace Clio;
 public partial class NoteWindow
 {
     private abstract record Step;
-    private sealed record TextStep : Step;
+    private sealed record TextStep(RichTextBox Target) : Step;
     private sealed record ItemStep(ItemState State) : Step;
-    private sealed record ItemState(List<NoteImage> Images, List<NoteDrawing> Drawings, List<string> Stack);
+    private sealed record ItemState(List<NoteImage> Images, List<NoteDrawing> Drawings, List<NoteTextBox> Boxes, List<string> Stack);
     private sealed record InkStep(StrokeCollection Added, StrokeCollection Removed);
 
     private const int Depth = 100;
@@ -50,19 +50,17 @@ public partial class NoteWindow
     private void StartHistory()
     {
         _stableItems = CaptureItems();
-        Editor.PreviewTextInput += (_, e) =>
-        {
-            // Word-sized steps: once a space or punctuation mark is in, the next
-            // keystroke starts a new undo unit instead of merging into this one.
-            if (e.Text.Length > 0 && (char.IsWhiteSpace(e.Text[0]) || char.IsPunctuation(e.Text[0])))
-                Dispatcher.BeginInvoke(Editor.LockCurrentUndoUnit);
-        };
     }
 
-    private ItemState CaptureItems() => new(
+    private ItemState CaptureItems()
+    {
+        FlushBoxes();
+        return new(
         Data.Images.Select(i => new NoteImage { File = i.File, X = i.X, Y = i.Y, W = i.W, H = i.H }).ToList(),
         Data.Drawings.Select(d => new NoteDrawing { Id = d.Id, Ink = d.Ink, X = d.X, Y = d.Y }).ToList(),
+        Data.TextBoxes.Select(t => new NoteTextBox { Id = t.Id, Rich = t.Rich, Text = t.Text, X = t.X, Y = t.Y, W = t.W }).ToList(),
         Data.Stack.ToList());
+    }
 
     private void Push(Step s)
     {
@@ -72,9 +70,9 @@ public partial class NoteWindow
     }
 
     /// <summary>Called from TextChanged: a new editor undo unit is one text step on the timeline.</summary>
-    private void TextChangedForUndo(TextChangedEventArgs e)
+    private void TextChangedForUndo(RichTextBox rtb, TextChangedEventArgs e)
     {
-        if (e.UndoAction == UndoAction.Create) Push(new TextStep());
+        if (e.UndoAction == UndoAction.Create) Push(new TextStep(rtb));
     }
 
     /// <summary>Kept for the call sites; item steps need nothing before the change.</summary>
@@ -90,53 +88,59 @@ public partial class NoteWindow
     private void Undo()
     {
         if (DrawToggle.IsChecked == true) { InkUndo(); return; }
-        if (_undo.Count == 0) return;
+        while (_undo.Count > 0)
+        {
         var step = _undo[^1];
         _undo.RemoveAt(_undo.Count - 1);
 
         switch (step)
         {
-            case TextStep when Editor.CanUndo:
-                Editor.Undo();
+            case TextStep t when t.Target.IsLoaded && t.Target.CanUndo:
+                t.Target.Undo();
                 _redo.Push(step);
-                break;
+                Editor.Focus();
+                return;
             case ItemStep item:
                 _redo.Push(new ItemStep(CaptureItems()));
                 RestoreItems(item.State);
-                break;
+                return;
         }
-        Editor.Focus();
+        }
     }
 
     private void Redo()
     {
         if (DrawToggle.IsChecked == true) { InkRedo(); return; }
-        if (_redo.Count == 0) return;
+        while (_redo.Count > 0)
+        {
         var step = _redo.Pop();
 
         switch (step)
         {
-            case TextStep when Editor.CanRedo:
-                Editor.Redo();
+            case TextStep t when t.Target.IsLoaded && t.Target.CanRedo:
+                t.Target.Redo();
                 _undo.Add(step);
-                break;
+                return;
             case ItemStep item:
                 _undo.Add(new ItemStep(CaptureItems()));
                 RestoreItems(item.State);
-                break;
+                return;
         }
-        Editor.Focus();
+        }
     }
 
     private void RestoreItems(ItemState s)
     {
         Data.Images = s.Images.Select(i => new NoteImage { File = i.File, X = i.X, Y = i.Y, W = i.W, H = i.H }).ToList();
         Data.Drawings = s.Drawings.Select(d => new NoteDrawing { Id = d.Id, Ink = d.Ink, X = d.X, Y = d.Y }).ToList();
+        Data.TextBoxes = s.Boxes.Select(t => new NoteTextBox { Id = t.Id, Rich = t.Rich, Text = t.Text, X = t.X, Y = t.Y, W = t.W }).ToList();
         Data.Stack = s.Stack.ToList();
         ClearSelection();
+        _active = null;
         foreach (var f in Items().ToList()) Body.Children.Remove(f);
         foreach (var img in Data.Images) AddImageElement(img);
         foreach (var d in Data.Drawings) AddDrawingElement(d);
+        foreach (var tb in Data.TextBoxes) AddTextBoxElement(tb);
         ApplyStack();
         ApplyAdvanced();
         _stableItems = CaptureItems();

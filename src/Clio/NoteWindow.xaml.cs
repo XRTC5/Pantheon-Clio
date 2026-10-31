@@ -115,10 +115,7 @@ public partial class NoteWindow : Window
 
         // Pasting a picture would put a bitmap in notes.json and in memory for
         // good. Text, with its formatting, is what a note holds.
-        DataObject.AddPastingHandler(Editor, (_, e) =>
-        {
-            if (!e.DataObject.GetDataPresent(DataFormats.UnicodeText)) e.CancelCommand();
-        });
+        WireEditor(Editor, main: true);
 
         // Not on SourceInitialized: Attach has already created the handle, so
         // that event has fired and a handler added now would never run.
@@ -278,6 +275,7 @@ public partial class NoteWindow : Window
         using var ms = new MemoryStream();
         new TextRange(Editor.Document.ContentStart, Editor.Document.ContentEnd).Save(ms, DataFormats.Xaml);
         Data.Rich = Encoding.UTF8.GetString(ms.ToArray());
+        FlushBoxes();
     }
 
     // ---------------------------------------------------------------- look
@@ -311,7 +309,7 @@ public partial class NoteWindow : Window
         // header buttons at the default note width.
         Stamp.Text = Data.Created.ToString("d MMM HH:mm").ToUpperInvariant();
         Stamp.ToolTip = $"Created {Data.Created:ddd d MMM yyyy, HH:mm}\nEdited {Data.Edited:ddd d MMM yyyy, HH:mm}";
-        var empty = Editor.Document.Blocks.Count <= 1 && PlainText().Length == 0;
+        var empty = Editor.Document.Blocks.Count <= 1 && PlainText().Length == 0 && Data.TextBoxes.Count == 0;
         Placeholder.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
     }
 
@@ -439,8 +437,10 @@ public partial class NoteWindow : Window
     {
         if (_suppress) return;
 
-        ConvertTodos();
-        TextChangedForUndo(e);
+        // The main text or any text box: the one that changed.
+        var rtb = (RichTextBox)sender;
+        ConvertTodos(rtb);
+        TextChangedForUndo(rtb, e);
 
         _dirty = true;
         Data.Edited = DateTime.Now;
@@ -453,17 +453,17 @@ public partial class NoteWindow : Window
     /// "/todo" becomes a checkbox glyph. Looped, because a paste can carry
     /// several. Done through the TextRange so each lands in the undo stack.
     /// </summary>
-    private void ConvertTodos()
+    private void ConvertTodos(RichTextBox rtb)
     {
         _suppress = true;
         try
         {
-            while (Find("/todo") is { } hit)
+            while (Find(rtb, "/todo") is { } hit)
             {
                 if (hit.End.GetTextInRun(LogicalDirection.Forward).StartsWith(' '))
                     hit = new TextRange(hit.Start, hit.End.GetPositionAtOffset(1)!);
                 hit.Text = Open + " ";
-                Editor.CaretPosition = hit.End;
+                rtb.CaretPosition = hit.End;
             }
         }
         finally
@@ -472,9 +472,9 @@ public partial class NoteWindow : Window
         }
     }
 
-    private TextRange? Find(string needle)
+    private static TextRange? Find(RichTextBox rtb, string needle)
     {
-        for (var p = Editor.Document.ContentStart; p is not null; p = p.GetNextContextPosition(LogicalDirection.Forward))
+        for (var p = rtb.Document.ContentStart; p is not null; p = p.GetNextContextPosition(LogicalDirection.Forward))
         {
             if (p.GetPointerContext(LogicalDirection.Forward) != TextPointerContext.Text) continue;
             var run = p.GetTextInRun(LogicalDirection.Forward);
@@ -489,8 +489,9 @@ public partial class NoteWindow : Window
     /// <summary>A click on a checkbox glyph ticks it, without moving the caret there.</summary>
     private void Editor_PreviewMouseDown(object sender, MouseButtonEventArgs e)
     {
-        var at = e.GetPosition(Editor);
-        var p = Editor.GetPositionFromPoint(at, snapToText: false);
+        var rtb = (RichTextBox)sender;
+        var at = e.GetPosition(rtb);
+        var p = rtb.GetPositionFromPoint(at, snapToText: false);
         if (p is null) return;
 
         foreach (var dir in new[] { LogicalDirection.Forward, LogicalDirection.Backward })
@@ -525,7 +526,7 @@ public partial class NoteWindow : Window
     private void RefreshFormatState()
     {
         if (FormatBar.Visibility != Visibility.Visible) return;
-        var sel = Editor.Selection;
+        var sel = Ed.Selection;
         _syncing = true;
 
         BoldToggle.IsChecked = sel.GetPropertyValue(TextElement.FontWeightProperty) is FontWeight w
@@ -542,15 +543,15 @@ public partial class NoteWindow : Window
     }
 
     private bool HasDecoration(TextDecorationLocation where) =>
-        Editor.Selection.GetPropertyValue(Inline.TextDecorationsProperty) is TextDecorationCollection c
+        Ed.Selection.GetPropertyValue(Inline.TextDecorationsProperty) is TextDecorationCollection c
         && c.Any(d => d.Location == where);
 
     private void Apply(DependencyProperty property, object value, bool markers = true)
     {
-        Editor.Selection.ApplyPropertyValue(property, value);
+        Ed.Selection.ApplyPropertyValue(property, value);
         if (markers && (property == TextElement.FontSizeProperty || property == TextElement.FontFamilyProperty))
             MatchListMarkers(property, value);
-        Editor.Focus();
+        Ed.Focus();
         _dirty = true;
         Store.SaveSoon();
         RefreshFormatState();
@@ -565,10 +566,10 @@ public partial class NoteWindow : Window
     /// </summary>
     private void MatchListMarkers(DependencyProperty property, object value)
     {
-        var end = Editor.Selection.End;
+        var end = Ed.Selection.End;
         var done = new HashSet<List>();
         var boxed = new HashSet<Paragraph>();
-        for (var p = Editor.Selection.Start; p is not null && p.CompareTo(end) <= 0;
+        for (var p = Ed.Selection.Start; p is not null && p.CompareTo(end) <= 0;
              p = p.GetNextContextPosition(LogicalDirection.Forward))
         {
             // A checklist box is a character at the start of the line, so it
@@ -596,19 +597,19 @@ public partial class NoteWindow : Window
         Apply(TextElement.FontWeightProperty, BoldNow() ? FontWeights.Normal : FontWeights.Bold);
 
     private bool BoldNow() =>
-        Editor.Selection.GetPropertyValue(TextElement.FontWeightProperty) is FontWeight w
+        Ed.Selection.GetPropertyValue(TextElement.FontWeightProperty) is FontWeight w
         && w.ToOpenTypeWeight() >= FontWeights.SemiBold.ToOpenTypeWeight();
 
     private void ToggleItalic() =>
         Apply(TextElement.FontStyleProperty,
-            Editor.Selection.GetPropertyValue(TextElement.FontStyleProperty) is FontStyle s && s == FontStyles.Italic
+            Ed.Selection.GetPropertyValue(TextElement.FontStyleProperty) is FontStyle s && s == FontStyles.Italic
                 ? FontStyles.Normal
                 : FontStyles.Italic);
 
     /// <summary>Underline and strikethrough share one collection; toggling one keeps the other.</summary>
     private void ToggleDecoration(TextDecorationLocation where)
     {
-        var current = Editor.Selection.GetPropertyValue(Inline.TextDecorationsProperty) as TextDecorationCollection;
+        var current = Ed.Selection.GetPropertyValue(Inline.TextDecorationsProperty) as TextDecorationCollection;
         var next = new TextDecorationCollection(current?.Where(d => d.Location != where) ?? Enumerable.Empty<TextDecoration>());
         if (!HasDecoration(where))
             next.Add(where == TextDecorationLocation.Underline ? TextDecorations.Underline[0] : TextDecorations.Strikethrough[0]);
@@ -622,7 +623,7 @@ public partial class NoteWindow : Window
     /// </summary>
     private void ToggleBaseline(BaselineAlignment target)
     {
-        var sel = Editor.Selection;
+        var sel = Ed.Selection;
         var size = sel.GetPropertyValue(TextElement.FontSizeProperty) is double px ? px : Px(DefaultPt);
         var on = sel.GetPropertyValue(Inline.BaselineAlignmentProperty) is BaselineAlignment b && b == target;
 
@@ -633,7 +634,7 @@ public partial class NoteWindow : Window
 
     private void StepSize(int direction)
     {
-        var current = Editor.Selection.GetPropertyValue(TextElement.FontSizeProperty) is double px ? Pt(px) : DefaultPt;
+        var current = Ed.Selection.GetPropertyValue(TextElement.FontSizeProperty) is double px ? Pt(px) : DefaultPt;
         var next = direction > 0
             ? Sizes.FirstOrDefault(s => s > current, Sizes[^1])
             : Sizes.LastOrDefault(s => s < current, Sizes[0]);
@@ -660,8 +661,8 @@ public partial class NoteWindow : Window
     private void ToggleChecklist()
     {
         var paragraphs = new List<Paragraph>();
-        var end = Editor.Selection.End;
-        for (var p = Editor.Selection.Start; p is not null && p.CompareTo(end) <= 0;
+        var end = Ed.Selection.End;
+        for (var p = Ed.Selection.Start; p is not null && p.CompareTo(end) <= 0;
              p = p.GetNextContextPosition(LogicalDirection.Forward))
         {
             if (p.Paragraph is { } para && !paragraphs.Contains(para)) paragraphs.Add(para);
@@ -674,7 +675,7 @@ public partial class NoteWindow : Window
             if (remove) Unbox(para);
             else if (!Boxed(para)) Box(para);
         }
-        Editor.Focus();
+        Ed.Focus();
     }
 
     private static string TextOf(Paragraph para) => new TextRange(para.ContentStart, para.ContentEnd).Text;
@@ -706,12 +707,12 @@ public partial class NoteWindow : Window
     /// </summary>
     private bool EnterInList()
     {
-        if (!Editor.Selection.IsEmpty || Editor.CaretPosition.Paragraph is not { } para) return false;
+        if (!Ed.Selection.IsEmpty || Ed.CaretPosition.Paragraph is not { } para) return false;
         var text = TextOf(para);
 
         if (Boxed(para))
         {
-            Editor.BeginChange();
+            Ed.BeginChange();
             try
             {
                 if (text[1..].Trim().Length == 0)
@@ -720,11 +721,11 @@ public partial class NoteWindow : Window
                 }
                 else
                 {
-                    EditingCommands.EnterParagraphBreak.Execute(null, Editor);
-                    if (Editor.CaretPosition.Paragraph is { } next && !Boxed(next))
+                    EditingCommands.EnterParagraphBreak.Execute(null, Ed);
+                    if (Ed.CaretPosition.Paragraph is { } next && !Boxed(next))
                     {
                         Box(next);
-                        Editor.CaretPosition = next.ContentStart
+                        Ed.CaretPosition = next.ContentStart
                             .GetInsertionPosition(LogicalDirection.Forward)
                             .GetPositionAtOffset(2) ?? next.ContentEnd;
                     }
@@ -732,7 +733,7 @@ public partial class NoteWindow : Window
             }
             finally
             {
-                Editor.EndChange();
+                Ed.EndChange();
             }
             return true;
         }
@@ -753,8 +754,8 @@ public partial class NoteWindow : Window
 
     private void ClearFormatting()
     {
-        Editor.Selection.ClearAllProperties();
-        Editor.Focus();
+        Ed.Selection.ClearAllProperties();
+        Ed.Focus();
         _dirty = true;
         Store.SaveSoon();
         RefreshFormatState();
@@ -762,8 +763,8 @@ public partial class NoteWindow : Window
 
     private void Run(RoutedUICommand command)
     {
-        command.Execute(null, Editor);
-        Editor.Focus();
+        command.Execute(null, Ed);
+        Ed.Focus();
     }
 
     private void Font_Click(object sender, RoutedEventArgs e)
@@ -818,9 +819,9 @@ public partial class NoteWindow : Window
 
     private void Insert(string text)
     {
-        Editor.Selection.Text = text;
-        Editor.CaretPosition = Editor.Selection.End;
-        Editor.Focus();
+        Ed.Selection.Text = text;
+        Ed.CaretPosition = Ed.Selection.End;
+        Ed.Focus();
     }
 
     // ---------------------------------------------------------------- keys

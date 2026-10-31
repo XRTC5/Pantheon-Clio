@@ -14,6 +14,19 @@
         MinWidth="170" MinHeight="120"
         Width="260" Height="240">
 
+    <Window.Resources>
+        <!-- A text box's editor: bare, like the main text's. -->
+        <Style x:Key="BoxEditor" TargetType="RichTextBox">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RichTextBox">
+                        <ScrollViewer x:Name="PART_ContentHost" Focusable="False" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
     <!--
         ResizeMode is NoResize because WPF's own resize handling assumes a
         frame this window does not have. Resizing comes from Placer answering

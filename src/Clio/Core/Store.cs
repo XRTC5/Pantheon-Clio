@@ -54,6 +54,9 @@ public sealed class NoteData
     /// </summary>
     public List<NoteDrawing> Drawings { get; set; } = new();
 
+    /// <summary>Free-floating text boxes (Advanced: Free Drag Writing), each its own rich text.</summary>
+    public List<NoteTextBox> TextBoxes { get; set; } = new();
+
     /// <summary>
     /// Draw order of everything on the note, bottom first: "text", "ink", and
     /// each picture by file name. Empty or partial (an older note) resolves to
@@ -114,6 +117,12 @@ public sealed class ClioState
     /// <summary>Advanced: paste pictures; pictures and drawings drag and restack.</summary>
     public bool AdvImages { get; set; }
 
+    /// <summary>Advanced: click empty space to start a text box; boxes drag and restack.</summary>
+    public bool AdvWriting { get; set; }
+
+    [JsonIgnore]
+    public bool WritingOn => Advanced && AdvWriting;
+
     /// <summary>Pictures and drawings are movable only with both switches on.</summary>
     [JsonIgnore]
     public bool ImagesOn => Advanced && AdvImages;
@@ -148,6 +157,17 @@ public sealed class NoteDrawing
     public string Ink { get; set; } = "";
     public double X { get; set; }
     public double Y { get; set; }
+}
+
+/// <summary>A text box placed anywhere on the note: its own formatted text, position and width.</summary>
+public sealed class NoteTextBox
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString("N")[..8];
+    public string? Rich { get; set; }
+    public string Text { get; set; } = "";
+    public double X { get; set; }
+    public double Y { get; set; }
+    public double W { get; set; } = 180;
 }
 
 public sealed class NoteImage

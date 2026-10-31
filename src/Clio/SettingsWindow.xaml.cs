@@ -39,6 +39,7 @@ public partial class SettingsWindow : Window
         TopSwitch.IsChecked = s.Layer == Layer.OnTop;
         AdvancedSwitch.IsChecked = s.Advanced;
         ImagesSwitch.IsChecked = s.AdvImages;
+        WritingSwitch.IsChecked = s.AdvWriting;
         // The ticks under the master switch only mean something while it is on.
         AdvancedRows.IsEnabled = s.Advanced;
         AdvancedRows.Opacity = s.Advanced ? 1 : 0.4;
@@ -71,6 +72,14 @@ public partial class SettingsWindow : Window
         Store.Save();
         if (Store.State.Advanced) AdvancedExpand.IsChecked = true;
         Refresh();
+        _notes.RefreshAdvanced();
+    }
+
+    private void Writing_Click(object sender, RoutedEventArgs e)
+    {
+        if (_syncing) return;
+        Store.State.AdvWriting = WritingSwitch.IsChecked == true;
+        Store.Save();
         _notes.RefreshAdvanced();
     }
 

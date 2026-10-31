@@ -55,6 +55,7 @@ public partial class HistoryWindow : Window
             $"   ERASED {erased:dd MMM HH:mm}".ToUpperInvariant() + $"   {leftText}"));
 
         var preview = note.Text.Trim();
+        if (preview.Length == 0) preview = string.Join("  /  ", note.TextBoxes.Select(t => t.Text.Trim()).Where(t => t.Length > 0));
         if (preview.Length == 0) preview = note.Drawings.Count > 0 || note.Ink is not null ? "(drawing)" : note.Images.Count > 0 ? "(picture)" : "(empty)";
 
         var body = new TextBlock

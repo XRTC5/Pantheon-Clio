@@ -60,6 +60,7 @@ public partial class NoteWindow
         MigrateInk();
         foreach (var img in Data.Images) AddImageElement(img);
         foreach (var d in Data.Drawings) AddDrawingElement(d);
+        foreach (var tb in Data.TextBoxes) AddTextBoxElement(tb);
         ApplyStack();
         ApplyAdvanced();
     }
@@ -80,7 +81,9 @@ public partial class NoteWindow
     {
         foreach (var frame in Items())
         {
-            frame.IsHitTestVisible = Interactive;
+            // A text box stays editable whatever the switches; pictures and
+            // drawings lock when Images is off.
+            frame.IsHitTestVisible = frame.Tag is NoteTextBox || Interactive;
             frame.BorderBrush = EdgeFor(frame, hover: false);
         }
         if (!Interactive) Editor.Cursor = null;
@@ -90,7 +93,7 @@ public partial class NoteWindow
     // ------------------------------------------------------------------ stack
 
     private IEnumerable<Border> Items() =>
-        Body.Children.OfType<Border>().Where(b => b.Tag is NoteImage or NoteDrawing);
+        Body.Children.OfType<Border>().Where(b => b.Tag is NoteImage or NoteDrawing or NoteTextBox);
 
     private IEnumerable<Border> DrawingFrames() => Items().Where(b => b.Tag is NoteDrawing);
 
@@ -98,6 +101,7 @@ public partial class NoteWindow
     {
         NoteImage img => img.File,
         NoteDrawing d => "d:" + d.Id,
+        NoteTextBox t => "t:" + t.Id,
         _ => "",
     };
 
@@ -110,13 +114,16 @@ public partial class NoteWindow
     {
         var pictures = Data.Images.Select(i => i.File).ToList();
         var drawings = Data.Drawings.Select(d => "d:" + d.Id).ToList();
-        var known = pictures.Concat(drawings).Append(TextLayer).ToHashSet();
+        var boxes = Data.TextBoxes.Select(t => "t:" + t.Id).ToList();
+        var known = pictures.Concat(drawings).Concat(boxes).Append(TextLayer).ToHashSet();
 
         var s = Data.Stack.Where(known.Contains).Distinct().ToList();
         if (!s.Contains(TextLayer)) s.Add(TextLayer);
         s.InsertRange(0, pictures.Where(p => !s.Contains(p)).ToList());
         foreach (var d in drawings.Where(d => !s.Contains(d)).ToList())
             s.Insert(s.IndexOf(TextLayer), d);
+        // Text boxes default to the top: they are written on, so they sit over everything.
+        s.AddRange(boxes.Where(b => !s.Contains(b)).ToList());
 
         Data.Stack = s;
         return s;
@@ -167,7 +174,7 @@ public partial class NoteWindow
 
     private Brush EdgeFor(Border frame, bool hover)
     {
-        if (!Interactive) return Brushes.Transparent;
+        if (!(frame.Tag is NoteTextBox ? Writing : Interactive)) return Brushes.Transparent;
         if (_selected.Contains(frame)) return (Brush)Resources["NoteAccent"];
         if (hover || _dragging == frame) return (Brush)Resources["NoteAccentSoft"];
         return Arranging ? ArrangeEdge : Brushes.Transparent;
@@ -186,10 +193,15 @@ public partial class NoteWindow
     {
         // In Arrange the items take the mouse directly; while drawing, a stroke
         // that starts over an item is a stroke, not a drag.
-        if (!Interactive || Arranging || DrawToggle.IsChecked == true) return null;
+        if (Arranging || DrawToggle.IsChecked == true) return null;
+        var altHeld = (Keyboard.Modifiers & ModifierKeys.Alt) != 0;
+
+        // A text box is typed in, so a plain click goes to its text; Alt
+        // (selection) or its top strip moves it. Pictures and drawings need Images on.
+        bool Grabbable(Border f) => f.Tag is NoteTextBox ? altHeld && Writing && Selecting : Interactive;
 
         var frame = Items()
-            .Where(f => f.IsVisible && new Rect(f.TranslatePoint(new Point(), Body), f.RenderSize).Contains(inBody))
+            .Where(f => f.IsVisible && Grabbable(f) && new Rect(f.TranslatePoint(new Point(), Body), f.RenderSize).Contains(inBody))
             .OrderByDescending(Panel.GetZIndex)
             .FirstOrDefault();
         if (frame is null) return null;
@@ -218,6 +230,18 @@ public partial class NoteWindow
             && new Rect(Body.RenderSize).Contains(e.GetPosition(Body)))
         {
             StartBox(e.GetPosition(Body));
+            e.Handled = true;
+            return;
+        }
+
+        // Free Drag Writing: a click on empty space (no words, no item, no box) starts a text box.
+        var inBody = e.GetPosition(Body);
+        if (Writing && !alt && !Arranging && DrawToggle.IsChecked != true && Confirm.Visibility != Visibility.Visible
+            && new Rect(Body.RenderSize).Contains(inBody) && !InsideBox(inBody)
+            && Editor.GetPositionFromPoint(e.GetPosition(Editor), snapToText: false) is null)
+        {
+            if (_selected.Count > 0) ClearSelection();
+            StartTextBox(inBody);
             e.Handled = true;
             return;
         }
@@ -612,7 +636,7 @@ public partial class NoteWindow
             forward.IsEnabled = front.IsEnabled = idx.Max() < s.Count - 1 || idx.Count > 1 && idx.Max() - idx.Min() >= idx.Count;
             backward.IsEnabled = back.IsEnabled = idx.Min() > 0 || idx.Count > 1 && idx.Max() - idx.Min() >= idx.Count;
             remove.Header = Targets(frame).Count > 1 ? $"Delete {Targets(frame).Count} items"
-                          : frame.Tag is NoteDrawing ? "Delete drawing" : "Remove picture";
+                          : frame.Tag switch { NoteDrawing => "Delete drawing", NoteTextBox => "Delete text box", _ => "Remove picture" };
         };
 
         remove.Click += (_, _) =>
@@ -626,6 +650,7 @@ public partial class NoteWindow
                 // refers to any more are swept when Clio next starts.
                 if (f.Tag is NoteImage img) Data.Images.Remove(img);
                 else if (f.Tag is NoteDrawing d) Data.Drawings.Remove(d);
+                else if (f.Tag is NoteTextBox tb) { Data.TextBoxes.Remove(tb); if (_active?.Parent is Grid g && g.Parent == f) _active = null; }
             }
             ShowArrange();
             AfterItemChange();
@@ -646,7 +671,7 @@ public partial class NoteWindow
     private void BeginDrag(Border frame, Point at)
     {
         // Only pictures resize; a drawing is moved, not scaled.
-        _resizing = frame.Tag is NoteImage && at.X >= frame.ActualWidth - Grip && at.Y >= frame.ActualHeight - Grip;
+        _resizing = frame.Tag is NoteImage or NoteTextBox && at.X >= frame.ActualWidth - Grip && at.Y >= frame.ActualHeight - Grip;
         _grabOffset = _resizing ? new Point(frame.ActualWidth - at.X, frame.ActualHeight - at.Y) : at;
         _dragStart = frame.Margin;
         _dragging = frame;
@@ -673,6 +698,12 @@ public partial class NoteWindow
         }
 
         var pos = e.GetPosition(Body);
+        if (_resizing && frame.Tag is NoteTextBox box)
+        {
+            box.W = Math.Clamp(pos.X + _grabOffset.X - box.X, 60, Math.Max(60, Body.ActualWidth - box.X));
+            frame.Width = box.W;
+            return;
+        }
         if (_resizing && frame.Tag is NoteImage img)
         {
             // Keep the picture's shape: width follows the pointer, height follows width.
@@ -704,10 +735,11 @@ public partial class NoteWindow
 
         var dx = frame.Margin.Left - _dragStart.Left;
         var dy = frame.Margin.Top - _dragStart.Top;
-        if (_resizing && frame.Tag is NoteImage resized && frame.Child is Image picture)
+        if (_resizing)
         {
-            // Decode again at the new size: sharp if it grew, smaller if it shrank.
-            picture.Source = Decode(Path.Combine(Store.ImagesDir, resized.File), resized.W);
+            // Decode a picture again at the new size: sharp if it grew, smaller if it shrank.
+            if (frame.Tag is NoteImage resized && frame.Child is Image picture)
+                picture.Source = Decode(Path.Combine(Store.ImagesDir, resized.File), resized.W);
             _moved = true;
         }
         else
@@ -719,6 +751,10 @@ public partial class NoteWindow
                     case NoteImage img:
                         img.X = f.Margin.Left;
                         img.Y = f.Margin.Top;
+                        break;
+                    case NoteTextBox tb:
+                        tb.X = f.Margin.Left;
+                        tb.Y = f.Margin.Top;
                         break;
                     case NoteDrawing d:
                         d.X += dx;
