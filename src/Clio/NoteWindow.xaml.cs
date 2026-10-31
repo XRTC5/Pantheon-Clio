@@ -523,13 +523,40 @@ public partial class NoteWindow : Window
         Editor.Selection.GetPropertyValue(Inline.TextDecorationsProperty) is TextDecorationCollection c
         && c.Any(d => d.Location == where);
 
-    private void Apply(DependencyProperty property, object value)
+    private void Apply(DependencyProperty property, object value, bool markers = true)
     {
         Editor.Selection.ApplyPropertyValue(property, value);
+        if (markers && (property == TextElement.FontSizeProperty || property == TextElement.FontFamilyProperty))
+            MatchListMarkers(property, value);
         Editor.Focus();
         _dirty = true;
         Store.SaveSoon();
         RefreshFormatState();
+    }
+
+    /// <summary>
+    /// A list's "1." or bullet is drawn from the List element's font, not from
+    /// the runs inside it (nor from the ListItem: setting it there was tried
+    /// and changed nothing), so resizing the text left the numbers at the old
+    /// size. Every list the selection touches takes the new size or family;
+    /// one list's markers share one size, the last one chosen.
+    /// </summary>
+    private void MatchListMarkers(DependencyProperty property, object value)
+    {
+        var end = Editor.Selection.End;
+        var done = new HashSet<List>();
+        for (var p = Editor.Selection.Start; p is not null && p.CompareTo(end) <= 0;
+             p = p.GetNextContextPosition(LogicalDirection.Forward))
+        {
+            if (p.Paragraph?.Parent is ListItem { List: { } list } && done.Add(list))
+            {
+                list.SetValue(property, value);
+                // The marker is drawn inside the list's left padding. At 18 it
+                // fits a 10pt "1." but clips a 24pt one to a stray dot.
+                if (value is double size)
+                    list.Padding = new Thickness(Math.Max(18, size * 1.5), 0, 0, 0);
+            }
+        }
     }
 
     private void ToggleBold() =>
@@ -567,7 +594,8 @@ public partial class NoteWindow : Window
         var on = sel.GetPropertyValue(Inline.BaselineAlignmentProperty) is BaselineAlignment b && b == target;
 
         sel.ApplyPropertyValue(Inline.BaselineAlignmentProperty, on ? BaselineAlignment.Baseline : target);
-        Apply(TextElement.FontSizeProperty, on ? size / 0.7 : size * 0.7);
+        // markers: false, or a superscript "2" would shrink its list number too.
+        Apply(TextElement.FontSizeProperty, on ? size / 0.7 : size * 0.7, markers: false);
     }
 
     private void StepSize(int direction)
