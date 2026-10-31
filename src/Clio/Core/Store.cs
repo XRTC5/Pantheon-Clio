@@ -35,6 +35,12 @@ public sealed class NoteData
 
     public int Color { get; set; }
 
+    /// <summary>
+    /// See-through body: the middle of the note shows the desktop behind it,
+    /// while the header, border and brackets stay solid. Per note.
+    /// </summary>
+    public bool Clear { get; set; }
+
     /// <summary>Physical pixels. Restored verbatim, the Argus placement rule.</summary>
     public int Left { get; set; }
     public int Top { get; set; }

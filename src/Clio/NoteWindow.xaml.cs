@@ -93,6 +93,7 @@ public partial class NoteWindow : Window
         LoadDocument();
         RefreshMeta();
         ApplyAccent();
+        ApplyClear();
 
         // Only a note that already carries a drawing pays for an InkCanvas.
         if (data.Ink is not null) EnsureInk();
@@ -292,6 +293,27 @@ public partial class NoteWindow : Window
         Placeholder.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
     }
 
+    /// <summary>
+    /// Alpha 1 of 255: invisible, but not zero. A layered window lets clicks
+    /// fall straight through fully transparent pixels, so a truly clear body
+    /// would send a click between two lines of text to whatever is behind.
+    /// </summary>
+    private static readonly Brush ClearFill = Frozen(new SolidColorBrush(Color.FromArgb(0x01, 0, 0, 0)));
+
+    /// <summary>
+    /// Solid or see-through. See-through clears the body only: plates keep the
+    /// header and bottom toolbar solid, and the border and brackets are
+    /// untouched. The scanlines and wash shrink to the header with the plate.
+    /// </summary>
+    private void ApplyClear()
+    {
+        var clear = Data.Clear;
+        Shell.Background = clear ? ClearFill : (Brush)FindResource("NoteBg");
+        TopPlate.Visibility = BottomPlate.Visibility = clear ? Visibility.Visible : Visibility.Collapsed;
+        Grid.SetRowSpan(ScanLayer, clear ? 2 : 4);
+        Grid.SetRowSpan(WashLayer, clear ? 2 : 4);
+    }
+
     private void Color_Click(object sender, RoutedEventArgs e)
     {
         var list = new StackPanel();
@@ -317,6 +339,36 @@ public partial class NoteWindow : Window
             System.Windows.Automation.AutomationProperties.SetName(pick, name);
             list.Children.Add(pick);
         }
+
+        // See-through toggle, under the swatches as a lens rather than words, so
+        // the menu keeps the panel's glyph-and-rule look. Lit in the note's
+        // accent while the note is see-through. Only the middle changes; the
+        // border keeps its colour.
+        list.Children.Add(new Separator());
+        var ink = Data.Clear ? (Brush)Resources["NoteAccent"] : (Brush)FindResource("TextMid");
+        var lens = new Grid { Width = 14, Height = 14, HorizontalAlignment = HorizontalAlignment.Center };
+        lens.Children.Add(new Ellipse
+        {
+            Width = 9, Height = 9, StrokeThickness = 1.3, Stroke = ink,
+            HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top,
+        });
+        lens.Children.Add(new System.Windows.Shapes.Path
+        {
+            Data = Geometry.Parse("M 8,8 L 13,13"), StrokeThickness = 1.6, Stroke = ink,
+            StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round,
+        });
+        var hint = Data.Clear ? "Make solid" : "See-through";
+        var clear = Picker.Row(this, lens, () =>
+        {
+            Data.Clear = !Data.Clear;
+            ApplyClear();
+            Store.SaveSoon();
+        });
+        clear.HorizontalContentAlignment = HorizontalAlignment.Center;
+        clear.ToolTip = hint;
+        System.Windows.Automation.AutomationProperties.SetName(clear, hint);
+        list.Children.Add(clear);
+
         Picker.CloseOnPick(list, Picker.Open(ColorButton, list));
     }
 

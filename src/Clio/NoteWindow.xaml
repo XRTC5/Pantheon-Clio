@@ -40,8 +40,16 @@
             </Grid.RowDefinitions>
 
             <!-- Scanlines and a faint wash from the top: the projection. -->
-            <Rectangle Grid.RowSpan="4" Fill="{StaticResource Scanlines}" IsHitTestVisible="False" />
-            <Rectangle Grid.RowSpan="4" Fill="{DynamicResource NoteWash}" IsHitTestVisible="False" />
+            <!-- Solid plates behind the header and the bottom toolbar, shown only
+                 when the note is see-through (NoteData.Clear): the middle goes
+                 clear, the chrome around it stays readable. -->
+            <Border x:Name="TopPlate" Grid.RowSpan="2" Background="{StaticResource NoteBg}"
+                    CornerRadius="2,2,0,0" Visibility="Collapsed" />
+            <Border x:Name="BottomPlate" Grid.Row="3" Background="{StaticResource NoteBg}"
+                    CornerRadius="0,0,2,2" Visibility="Collapsed" />
+
+            <Rectangle x:Name="ScanLayer" Grid.RowSpan="4" Fill="{StaticResource Scanlines}" IsHitTestVisible="False" />
+            <Rectangle x:Name="WashLayer" Grid.RowSpan="4" Fill="{DynamicResource NoteWash}" IsHitTestVisible="False" />
 
             <!-- ======================================================= header -->
             <Grid x:Name="Header" Background="Transparent" Cursor="SizeAll"
