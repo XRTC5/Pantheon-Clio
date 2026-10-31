@@ -31,6 +31,23 @@ eyes. Clio is the muse of history, the one who keeps the record.
   box, and on a bulleted or numbered line it continues the list. Enter on an
   empty item ends the list.
 
+## Install
+
+1. Download one zip from the [latest release](https://github.com/XRTC5/clio/releases/latest):
+   - **`clio-1.0.0-win-x64-standalone.zip`** (51 MB): a single `Clio.exe` with
+     .NET inside. Nothing else to install.
+   - **`clio-1.0.0-win-x64.zip`** (0.2 MB): needs Microsoft's .NET 9 Desktop
+     Runtime, installed once with `winget install Microsoft.DotNet.DesktopRuntime.9`.
+     Choose this one if you also run [Argus](https://github.com/XRTC5/argus):
+     both apps then share one copy of .NET in memory, and runtime security fixes
+     arrive through Windows Update.
+2. Unzip it to a folder you will keep, for example `%LOCALAPPDATA%\Clio`.
+3. Run `Clio.exe`. It starts with Windows by default; you can turn that off in its
+   settings.
+
+Windows SmartScreen may warn on first run because the exe is not code-signed.
+Choose **More info**, then **Run anyway**.
+
 Shortcuts inside a note:
 
 | Keys | Does |
