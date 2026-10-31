@@ -198,6 +198,12 @@
                     </RichTextBox.Template>
                 </RichTextBox>
 
+                <!-- Pasted pictures, free-floating over the text. A null background
+                     means only the pictures themselves take the mouse; the text
+                     around them stays editable. Below the ink, so a doodle can
+                     go over a picture. -->
+                <Canvas x:Name="ImageLayer" ClipToBounds="True" />
+
                 <!-- InkCanvas goes here, created only for a note that is drawn on. -->
                 <Grid x:Name="InkHost" />
             </Grid>

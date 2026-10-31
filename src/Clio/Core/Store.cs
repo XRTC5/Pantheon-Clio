@@ -44,6 +44,9 @@ public sealed class NoteData
     /// <summary>Locked on top: this note stays above other windows whatever the shared layer is.</summary>
     public bool Pinned { get; set; }
 
+    /// <summary>Pasted pictures, free-floating over the body. Files live in Store.ImagesDir.</summary>
+    public List<NoteImage> Images { get; set; } = new();
+
     /// <summary>Physical pixels. Restored verbatim, the Argus placement rule.</summary>
     public int Left { get; set; }
     public int Top { get; set; }
@@ -89,11 +92,31 @@ public sealed class ClioState
     public bool RunOnStartup { get; set; } = true;
 
     /// <summary>Drops History entries older than the retention. True if any went.</summary>
+    /// <summary>Drops History entries older than the retention, deleting their picture files.</summary>
     public bool Purge()
     {
         var cutoff = DateTime.Now.AddDays(-Math.Max(1, HistoryDays));
-        return History.RemoveAll(n => n.Erased is { } at && at < cutoff) > 0;
+        var gone = History.Where(n => n.Erased is { } at && at < cutoff).ToList();
+        foreach (var n in gone)
+        {
+            History.Remove(n);
+            Store.DeleteImages(n);
+        }
+        return gone.Count > 0;
     }
+}
+
+/// <summary>
+/// One pasted picture. Position and size are in device-independent units
+/// relative to the note's body, so they survive a move between displays.
+/// </summary>
+public sealed class NoteImage
+{
+    public string File { get; set; } = "";
+    public double X { get; set; }
+    public double Y { get; set; }
+    public double W { get; set; }
+    public double H { get; set; }
 }
 
 /// <summary>
@@ -150,6 +173,19 @@ internal static class Store
     /// for it; nothing in Clio depends on Argus being there. Written only when
     /// the path changes, so Argus re-reads it only when there is news.
     /// </summary>
+    /// <summary>Pasted pictures, as PNG files, so notes.json stays small.</summary>
+    public static string ImagesDir => Path.Combine(Directory, "images");
+
+    /// <summary>Deletes a note's picture files. Only for a note that is gone for good.</summary>
+    public static void DeleteImages(NoteData note)
+    {
+        foreach (var img in note.Images)
+        {
+            try { File.Delete(Path.Combine(ImagesDir, img.File)); }
+            catch (Exception ex) { Log.Warn($"picture {img.File} not deleted: {ex.Message}"); }
+        }
+    }
+
     public static void Announce()
     {
         try

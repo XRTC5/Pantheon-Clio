@@ -15,15 +15,17 @@ internal sealed class TrayIcon : IDisposable
 
     private readonly HwndSource _sink;
     private readonly Action _onClick;
+    private readonly Action _onDoubleClick;
     private readonly Func<ContextMenu> _menu;
     private readonly int _taskbarCreated;
 
     private IntPtr _hIcon;
     private bool _added;
 
-    public TrayIcon(Action onClick, Func<ContextMenu> menu)
+    public TrayIcon(Action onClick, Action onDoubleClick, Func<ContextMenu> menu)
     {
         _onClick = onClick;
+        _onDoubleClick = onDoubleClick;
         _menu = menu;
 
         _sink = new HwndSource(new HwndSourceParameters("ClioTraySink")
@@ -83,6 +85,11 @@ internal sealed class TrayIcon : IDisposable
         {
             case Native.WM_LBUTTONUP:
                 _onClick();
+                handled = true;
+                break;
+
+            case Native.WM_LBUTTONDBLCLK:
+                _onDoubleClick();
                 handled = true;
                 break;
 

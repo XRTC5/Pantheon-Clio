@@ -63,6 +63,7 @@ internal sealed class Notes
     public void NewNote(NoteWindow? from)
     {
         if (_animating) return;
+        ShowAll();
 
         var s = Store.State;
         if (s.Collapsed && s.Notes.Count > 0)
@@ -284,12 +285,14 @@ internal sealed class Notes
     public void DeleteForGood(NoteData d)
     {
         Store.State.History.Remove(d);
+        Store.DeleteImages(d);
         Store.Save();
         RefreshDialogs();
     }
 
     public void EmptyHistory()
     {
+        foreach (var d in Store.State.History) Store.DeleteImages(d);
         Store.State.History.Clear();
         Store.Save();
         RefreshDialogs();
@@ -351,6 +354,62 @@ internal sealed class Notes
     }
 
     // ------------------------------------------------------ stow / release
+
+    // ------------------------------------------------------------- hide
+
+    /// <summary>
+    /// Clio hidden but still running: no hub, no note windows (closed, not
+    /// just hidden, so a hidden Clio costs next to nothing), only the tray
+    /// icon. Not saved: Clio always starts visible, so it cannot get lost.
+    /// </summary>
+    private bool _hidden;
+
+    public void HideAll()
+    {
+        if (_hidden || _animating) return;
+        _hidden = true;
+
+        _settings?.Close();
+        _history?.Close();
+        foreach (var w in _open.Values.ToList())
+        {
+            w.Flush();
+            _views[w.Data.Id] = w.View;
+            w.Close();
+        }
+        foreach (var g in _ghosts.Values) g.Dispose();
+        _ghosts.Clear();
+        _hub.Hide();
+
+        Store.Save();
+        TrimSoon();
+    }
+
+    /// <summary>Back exactly as it was: the hub, and every note that was out.</summary>
+    public void ShowAll()
+    {
+        if (!_hidden) return;
+        _hidden = false;
+
+        _hub.Show();
+        _hub.Placer.ApplyLayer();
+        if (Store.State.Collapsed) return;
+
+        foreach (var d in Store.State.Notes)
+        {
+            if (_open.ContainsKey(d.Id) || _ghosts.ContainsKey(d.Id)) continue;
+            var w = Open(d);
+            if (_views.Remove(d.Id, out var view)) w.RestoreView(view);
+            w.Show();
+        }
+    }
+
+    /// <summary>A tray click shows a hidden Clio; on a visible one it stows or releases, as before.</summary>
+    public void TrayClick()
+    {
+        if (_hidden) ShowAll();
+        else Toggle();
+    }
 
     public void Toggle()
     {
@@ -486,6 +545,14 @@ internal sealed class Notes
         var s = Store.State;
         var menu = new ContextMenu();
 
+        if (_hidden)
+        {
+            menu.Items.Add(Item("Show Clio", ShowAll));
+            menu.Items.Add(new Separator());
+            menu.Items.Add(Item("Quit Clio", Quit));
+            return menu;
+        }
+
         menu.Items.Add(Item("New note", NewNote));
         if (s.Notes.Count > 0)
             menu.Items.Add(Item(s.Collapsed ? "Release all notes" : "Stow all notes", Toggle));
@@ -496,6 +563,7 @@ internal sealed class Notes
         menu.Items.Add(top);
         menu.Items.Add(Item(s.History.Count == 0 ? "History" : $"History ({s.History.Count})", OpenHistory));
         menu.Items.Add(Item("Settings", OpenSettings));
+        menu.Items.Add(Item("Hide Clio  (double-click the tray icon to bring it back)", HideAll));
 
         menu.Items.Add(new Separator());
         menu.Items.Add(Item("Quit Clio", Quit));

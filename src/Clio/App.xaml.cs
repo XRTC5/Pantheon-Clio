@@ -76,7 +76,7 @@ public partial class App : Application
         var notes = new Notes();
         notes.Start();
 
-        _tray = new TrayIcon(notes.Toggle, notes.Menu);
+        _tray = new TrayIcon(notes.TrayClick, notes.ShowAll, notes.Menu);
 
         _quit = new EventWaitHandle(false, EventResetMode.AutoReset, QuitEvent);
         ThreadPool.RegisterWaitForSingleObject(_quit,

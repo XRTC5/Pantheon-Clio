@@ -101,6 +101,10 @@ public partial class NoteWindow : Window
         Placer = new Placer(this, resizable: true) { Pinned = data.Pinned };
         Placer.Attach();
         Placer.MoveTo(data.Rect);
+
+        // After the handle exists and the window sits on its display: pictures
+        // are decoded at that display's scale, and before it they would read 96 DPI.
+        LoadImages();
         Placer.Settled += r =>
         {
             Data.Rect = r;
@@ -545,9 +549,20 @@ public partial class NoteWindow : Window
     {
         var end = Editor.Selection.End;
         var done = new HashSet<List>();
+        var boxed = new HashSet<Paragraph>();
         for (var p = Editor.Selection.Start; p is not null && p.CompareTo(end) <= 0;
              p = p.GetNextContextPosition(LogicalDirection.Forward))
         {
+            // A checklist box is a character at the start of the line, so it
+            // only followed a resize when the selection happened to include
+            // it. Selecting the words after it left the box small.
+            if (p.Paragraph is { } para && boxed.Add(para) && Boxed(para))
+            {
+                var start = para.ContentStart.GetInsertionPosition(LogicalDirection.Forward);
+                if (start.GetPositionAtOffset(1) is { } after)
+                    new TextRange(start, after).ApplyPropertyValue(property, value);
+            }
+
             if (p.Paragraph?.Parent is ListItem { List: { } list } && done.Add(list))
             {
                 list.SetValue(property, value);
@@ -810,6 +825,9 @@ public partial class NoteWindow : Window
         e.Handled = (ctrl, shift, alt, key) switch
         {
             (true, false, false, Key.N) => Handle(() => _notes.NewNote(this)),
+            // A picture on the clipboard becomes a free-floating picture; text
+            // falls through to the editor's own paste.
+            (true, false, false, Key.V) => TryPastePicture(),
             (true, false, false, Key.D) => Handle(() => SetDrawing(_ink is null || !_ink.IsHitTestVisible)),
             (true, false, false, Key.B) => Handle(ToggleBold),
             (true, false, false, Key.I) => Handle(ToggleItalic),
