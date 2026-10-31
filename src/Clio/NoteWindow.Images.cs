@@ -131,37 +131,69 @@ public partial class NoteWindow
     /// Alt-drag: grab the topmost picture under the pointer even if the text is
     /// on top of it. Runs before the editor sees the click.
     /// </summary>
-    private void AltGrab(object sender, MouseButtonEventArgs e)
+    /// <summary>
+    /// A picture behind the text still answers the mouse, as if it were in
+    /// front, everywhere except on the letters themselves: those still place
+    /// the caret, so text over a picture stays editable. Gaps between lines,
+    /// margins and empty space go to the picture. Alt hands even the letters
+    /// to the picture. RTC's rule, 2026-10-31: "I should be able to click the
+    /// photo like if it was at front."
+    /// </summary>
+    private Border? PictureFor(Point inBody, Point inEditor)
     {
-        if (AltPicture(e) is not { } frame) return;
+        if (Arranging) return null;   // in Arrange the pictures take the mouse directly
+
+        var frame = Pictures()
+            .Where(f => new Rect(f.TranslatePoint(new Point(), Body), f.RenderSize).Contains(inBody))
+            .OrderByDescending(Panel.GetZIndex)
+            .FirstOrDefault();
+        if (frame is null) return null;
+
+        var alt = (Keyboard.Modifiers & ModifierKeys.Alt) != 0;
+        var behindText = Panel.GetZIndex(frame) < Panel.GetZIndex(Editor);
+        if (alt || !behindText) return frame;
+
+        return Editor.GetPositionFromPoint(inEditor, snapToText: false) is null ? frame : null;
+    }
+
+    private Border? PictureFor(MouseEventArgs e) => PictureFor(e.GetPosition(Body), e.GetPosition(Editor));
+
+    private void PictureGrab(object sender, MouseButtonEventArgs e)
+    {
+        if (PictureFor(e) is not { } frame) return;
         BeginDrag(frame, e.GetPosition(frame));
         e.Handled = true;
     }
 
-    /// <summary>
-    /// Alt+right-click: the picture's own menu (stacking, remove) even when the
-    /// text is on top of it. Without this the text took the click and showed
-    /// its cut/copy/paste menu instead.
-    /// </summary>
-    private void AltMenu(object sender, MouseButtonEventArgs e)
+    /// <summary>Right-click on a picture, even one behind the text: its own stacking and remove menu.</summary>
+    private void PictureMenuAt(object sender, MouseButtonEventArgs e)
     {
-        if (AltPicture(e) is not { ContextMenu: { } menu } frame) return;
+        if (PictureFor(e) is not { ContextMenu: { } menu } frame) return;
         menu.PlacementTarget = frame;
         menu.Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
         menu.IsOpen = true;
         e.Handled = true;
     }
 
-    /// <summary>The topmost picture under the pointer while Alt is held, whatever is above it.</summary>
-    private Border? AltPicture(MouseEventArgs e) => AltPictureAt(e.GetPosition(Body));
-
-    private Border? AltPictureAt(Point at)
+    /// <summary>
+    /// The move cursor wherever a click would grab a picture, so a picture
+    /// behind the text does not hide behind an I-beam.
+    /// </summary>
+    private void PictureHover(object sender, MouseEventArgs e)
     {
-        if ((Keyboard.Modifiers & ModifierKeys.Alt) == 0 || Arranging) return null;
-        return Pictures()
-            .Where(f => new Rect(f.TranslatePoint(new Point(), Body), f.RenderSize).Contains(at))
-            .OrderByDescending(Panel.GetZIndex)
-            .FirstOrDefault();
+        if (_dragging is not null || Arranging) return;
+        Editor.Cursor = PictureFor(e) is not null ? Cursors.SizeAll : null;
+    }
+
+    /// <summary>
+    /// A lone Alt press puts a window into its title-bar menu mode when it is
+    /// released, which takes focus and closed a picture menu opened with
+    /// Alt+right-click before anything could be chosen. Alt combinations
+    /// (Alt+F4) are untouched: only Alt by itself is swallowed.
+    /// </summary>
+    private void SwallowLoneAlt(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.System && e.SystemKey is Key.LeftAlt or Key.RightAlt) e.Handled = true;
     }
 
     // ------------------------------------------------------------------ paste

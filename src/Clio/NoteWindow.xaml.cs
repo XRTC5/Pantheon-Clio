@@ -126,14 +126,18 @@ public partial class NoteWindow : Window
         Placer.ApplyLayer();
         ShowPinMark();
         PreviewKeyDown += OnKey;
-        // Alt-drag reaches a picture behind the text; it must run before the editor sees the click.
-        PreviewMouseLeftButtonDown += AltGrab;
-        PreviewMouseRightButtonUp += AltMenu;
-        // The text's own menu would open on the same Alt+right-click; give way
-        // when there is a picture under the pointer.
+        // Pictures behind the text still take clicks off the letters (and with
+        // Alt, on them too); these run before the editor sees the click.
+        PreviewMouseLeftButtonDown += PictureGrab;
+        PreviewMouseRightButtonUp += PictureMenuAt;
+        PreviewMouseMove += PictureHover;
+        PreviewKeyDown += SwallowLoneAlt;
+        PreviewKeyUp += SwallowLoneAlt;
+        // The text's own menu would open on the same right-click; give way
+        // when the click belongs to a picture.
         Editor.ContextMenuOpening += (_, e) =>
         {
-            if (AltPictureAt(Mouse.GetPosition(Body)) is not null)
+            if (PictureFor(Mouse.GetPosition(Body), Mouse.GetPosition(Editor)) is not null)
                 e.Handled = true;
         };
 
