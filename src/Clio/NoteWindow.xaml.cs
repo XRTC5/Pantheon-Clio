@@ -952,6 +952,10 @@ public partial class NoteWindow : Window
         DrawToggle.IsChecked = on;
         _syncing = false;
 
+        // Lift the ink over the text while drawing, drop it back after (ApplyStack).
+        ApplyStack();
+        Editor.Cursor = null;
+
         if (!on && _ink.Strokes.Count == 0)
         {
             // Nothing was drawn: drop the canvas so this note stays as cheap

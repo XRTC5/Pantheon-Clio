@@ -72,7 +72,10 @@ public partial class NoteWindow
         var s = Stack();
         Panel.SetZIndex(Editor, s.IndexOf(TextLayer));
         Panel.SetZIndex(Placeholder, s.IndexOf(TextLayer));
-        Panel.SetZIndex(InkHost, s.IndexOf(InkLayer));
+        // While drawing, the ink goes over everything, or the text on top of it
+        // takes every stroke (it did, from fd63ea3 until this was added). It
+        // drops back to its place in the stack when drawing ends.
+        Panel.SetZIndex(InkHost, DrawToggle.IsChecked == true ? s.Count + 1 : s.IndexOf(InkLayer));
         foreach (var frame in Pictures())
             Panel.SetZIndex(frame, s.IndexOf(((NoteImage)frame.Tag).File));
     }
@@ -141,7 +144,9 @@ public partial class NoteWindow
     /// </summary>
     private Border? PictureFor(Point inBody, Point inEditor)
     {
-        if (Arranging) return null;   // in Arrange the pictures take the mouse directly
+        // In Arrange the pictures take the mouse directly; while drawing, a
+        // stroke that starts over a picture is a stroke, not a drag.
+        if (Arranging || DrawToggle.IsChecked == true) return null;
 
         var frame = Pictures()
             .Where(f => new Rect(f.TranslatePoint(new Point(), Body), f.RenderSize).Contains(inBody))
