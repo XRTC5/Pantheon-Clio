@@ -1,202 +1,237 @@
-using System.IO;
-using System.Text;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Documents;
 using System.Windows.Ink;
 using System.Windows.Input;
-using System.Windows.Threading;
 using Clio.Core;
 
 namespace Clio;
 
-/// <summary>One state of a note's content, for undo.</summary>
-internal sealed record NoteSnapshot(
-    string? Rich, string Text, List<NoteImage> Images, List<NoteDrawing> Drawings, List<string> Stack, int Caret);
-
 /// <summary>
-/// A note's undo history. Owned by Notes, not by the window, so it survives
-/// the note falling asleep (its window is closed then) and waking again.
-/// </summary>
-internal sealed class NoteUndo
-{
-    public const int Depth = 40;
-    public readonly LinkedList<NoteSnapshot> Undo = new();
-    public readonly Stack<NoteSnapshot> Redo = new();
-    public NoteSnapshot? Stable;
-
-    public void Push(NoteSnapshot s)
-    {
-        Undo.AddLast(s);
-        if (Undo.Count > Depth) Undo.RemoveFirst();
-    }
-}
-
-/// <summary>
-/// Undo and redo for everything on a note: text, pictures, drawings and the
-/// stacking order. Ctrl+Z, Ctrl+Y (or Ctrl+Shift+Z), or the arrows under the
-/// note's REC label.
+/// Undo and redo, as in Word and Google Docs: Ctrl+Z, Ctrl+Y (or Ctrl+Shift+Z),
+/// or the arrows under the note's REC label.
 ///
-/// Snapshot-based: before each change, the last settled state is pushed.
-/// A burst of typing is one step (it settles after a short pause), as in
-/// Google Docs; a picture move, a restack, a paste, a removal or a whole
-/// doodle session is one step each. Inside a doodle session Ctrl+Z takes back
-/// the last stroke instead. The editor's own undo is off, so there is one
-/// history, not two that disagree.
+/// One timeline, two kinds of step:
+///   Text: the editor's own undo, which keeps the caret where the change was.
+///     Typing is cut into word-sized steps (a space or punctuation ends one),
+///     so Ctrl+Z takes back the last word, not everything typed since a pause.
+///     Formatting, deleting and pasting are steps of their own.
+///   Items: a picture or drawing moved, resized, restacked, pasted, removed,
+///     or a whole doodle session. These restore only the items, never the text.
+///
+/// The first version (40f273c) snapshotted the whole note, text included: one
+/// Ctrl+Z reverted a burst of typing at once and threw the caret to the start,
+/// and the reload raised a text change that wiped the redo stack. RTC: "always
+/// deletes the entire thing and goes to the start of the first row."
+///
+/// Inside a doodle session, Ctrl+Z and Ctrl+Y step through strokes and erases.
+/// The history lives with the note's window; a note that has one waits five
+/// minutes, not fifteen seconds, before it sleeps (Notes.SleepIdle).
 /// </summary>
 public partial class NoteWindow
 {
-    private NoteUndo _history = new();
-    private bool _burst;
-    private bool _restoring;
-    private DispatcherTimer? _settle;
-    private readonly Stack<Stroke> _sessionStrokes = new();
+    private abstract record Step;
+    private sealed record TextStep : Step;
+    private sealed record ItemStep(ItemState State) : Step;
+    private sealed record ItemState(List<NoteImage> Images, List<NoteDrawing> Drawings, List<string> Stack);
+    private sealed record InkStep(StrokeCollection Added, StrokeCollection Removed);
+
+    private const int Depth = 100;
+    private readonly List<Step> _undo = new();
+    private readonly Stack<Step> _redo = new();
+    private ItemState? _stableItems;
+
+    private readonly Stack<InkStep> _inkUndo = new();
+    private readonly Stack<InkStep> _inkRedo = new();
+    private bool _inkApplying;
+
+    /// <summary>True once there is anything to undo; Notes lets such a note stay awake longer.</summary>
+    internal bool HasHistory => _undo.Count > 0 || _redo.Count > 0;
 
     private void StartHistory()
     {
-        _history = _notes.UndoFor(Data.Id);
-        _history.Stable ??= Capture();
-    }
-
-    private NoteSnapshot Capture()
-    {
-        using var ms = new MemoryStream();
-        new TextRange(Editor.Document.ContentStart, Editor.Document.ContentEnd).Save(ms, DataFormats.Xaml);
-        var caret = Editor.Document.ContentStart.GetOffsetToPosition(Editor.CaretPosition);
-        return new NoteSnapshot(
-            Encoding.UTF8.GetString(ms.ToArray()),
-            PlainText(),
-            Data.Images.Select(i => new NoteImage { File = i.File, X = i.X, Y = i.Y, W = i.W, H = i.H }).ToList(),
-            Data.Drawings.Select(d => new NoteDrawing { Id = d.Id, Ink = d.Ink, X = d.X, Y = d.Y }).ToList(),
-            Data.Stack.ToList(),
-            caret);
-    }
-
-    /// <summary>Typing: the first keystroke of a burst records the state before it.</summary>
-    private void TextChangedForUndo()
-    {
-        if (_restoring) return;
-        if (!_burst)
+        _stableItems = CaptureItems();
+        Editor.PreviewTextInput += (_, e) =>
         {
-            _burst = true;
-            Record(_history.Stable);
-        }
-        _settle ??= new DispatcherTimer(TimeSpan.FromMilliseconds(900), DispatcherPriority.Background,
-            (_, _) => EndBurst(), Dispatcher);
-        _settle.Stop();
-        _settle.Start();
+            // Word-sized steps: once a space or punctuation mark is in, the next
+            // keystroke starts a new undo unit instead of merging into this one.
+            if (e.Text.Length > 0 && (char.IsWhiteSpace(e.Text[0]) || char.IsPunctuation(e.Text[0])))
+                Dispatcher.BeginInvoke(Editor.LockCurrentUndoUnit);
+        };
     }
 
-    private void EndBurst()
+    private ItemState CaptureItems() => new(
+        Data.Images.Select(i => new NoteImage { File = i.File, X = i.X, Y = i.Y, W = i.W, H = i.H }).ToList(),
+        Data.Drawings.Select(d => new NoteDrawing { Id = d.Id, Ink = d.Ink, X = d.X, Y = d.Y }).ToList(),
+        Data.Stack.ToList());
+
+    private void Push(Step s)
     {
-        _settle?.Stop();
-        if (!_burst) return;
-        _burst = false;
-        _history.Stable = Capture();
+        _undo.Add(s);
+        if (_undo.Count > Depth) _undo.RemoveAt(0);
+        _redo.Clear();
     }
 
-    private void Record(NoteSnapshot? before)
+    /// <summary>Called from TextChanged: a new editor undo unit is one text step on the timeline.</summary>
+    private void TextChangedForUndo(TextChangedEventArgs e)
     {
-        if (before is null) return;
-        _history.Push(before);
-        _history.Redo.Clear();
+        if (e.UndoAction == UndoAction.Create) Push(new TextStep());
     }
 
-    /// <summary>Before an item change: settle any typing so the step before it is exact.</summary>
-    private void BeforeItemChange() => EndBurst();
+    /// <summary>Kept for the call sites; item steps need nothing before the change.</summary>
+    private void BeforeItemChange() { }
 
-    /// <summary>After an item change: the settled state before it becomes one undo step.</summary>
+    /// <summary>After an item change: the item state before it becomes one step.</summary>
     private void AfterItemChange()
     {
-        if (_restoring) return;
-        Record(_history.Stable);
-        _history.Stable = Capture();
+        if (_stableItems is not null) Push(new ItemStep(_stableItems));
+        _stableItems = CaptureItems();
     }
 
     private void Undo()
     {
-        if (DrawToggle.IsChecked == true) { UndoStroke(); return; }
-        EndBurst();
-        if (_history.Undo.Last is not { } last) return;
-        _history.Undo.RemoveLast();
-        _history.Redo.Push(Capture());
-        Restore(last.Value);
+        if (DrawToggle.IsChecked == true) { InkUndo(); return; }
+        if (_undo.Count == 0) return;
+        var step = _undo[^1];
+        _undo.RemoveAt(_undo.Count - 1);
+
+        switch (step)
+        {
+            case TextStep when Editor.CanUndo:
+                Editor.Undo();
+                _redo.Push(step);
+                break;
+            case ItemStep item:
+                _redo.Push(new ItemStep(CaptureItems()));
+                RestoreItems(item.State);
+                break;
+        }
+        Editor.Focus();
     }
 
     private void Redo()
     {
-        if (DrawToggle.IsChecked == true) return;
-        EndBurst();
-        if (_history.Redo.Count == 0) return;
-        _history.Push(Capture());
-        Restore(_history.Redo.Pop());
-    }
+        if (DrawToggle.IsChecked == true) { InkRedo(); return; }
+        if (_redo.Count == 0) return;
+        var step = _redo.Pop();
 
-    /// <summary>Inside a doodle session: take back the last stroke drawn in it.</summary>
-    private void UndoStroke()
-    {
-        if (_ink is null) return;
-        while (_sessionStrokes.Count > 0)
+        switch (step)
         {
-            var s = _sessionStrokes.Pop();
-            if (_ink.Strokes.Contains(s)) { _ink.Strokes.Remove(s); return; }
+            case TextStep when Editor.CanRedo:
+                Editor.Redo();
+                _undo.Add(step);
+                break;
+            case ItemStep item:
+                _undo.Add(new ItemStep(CaptureItems()));
+                RestoreItems(item.State);
+                break;
         }
+        Editor.Focus();
     }
 
-    private void Restore(NoteSnapshot s)
+    private void RestoreItems(ItemState s)
     {
-        _restoring = true;
+        Data.Images = s.Images.Select(i => new NoteImage { File = i.File, X = i.X, Y = i.Y, W = i.W, H = i.H }).ToList();
+        Data.Drawings = s.Drawings.Select(d => new NoteDrawing { Id = d.Id, Ink = d.Ink, X = d.X, Y = d.Y }).ToList();
+        Data.Stack = s.Stack.ToList();
+        ClearSelection();
+        foreach (var f in Items().ToList()) Body.Children.Remove(f);
+        foreach (var img in Data.Images) AddImageElement(img);
+        foreach (var d in Data.Drawings) AddDrawingElement(d);
+        ApplyStack();
+        ApplyAdvanced();
+        _stableItems = CaptureItems();
+        Changed();
+    }
+
+    // ------------------------------------------------------- doodle sessions
+
+    /// <summary>Every stroke drawn or erased in a session is one step, so an erase can be undone too.</summary>
+    private void WatchSession(InkCanvas ink)
+    {
+        _inkUndo.Clear();
+        _inkRedo.Clear();
+        ink.Strokes.StrokesChanged += (_, e) =>
+        {
+            if (_inkApplying) return;
+            _inkUndo.Push(new InkStep(new StrokeCollection(e.Added), new StrokeCollection(e.Removed)));
+            _inkRedo.Clear();
+        };
+    }
+
+    private void InkUndo()
+    {
+        if (_ink is null || _inkUndo.Count == 0) return;
+        var step = _inkUndo.Pop();
+        ApplyInk(remove: step.Added, add: step.Removed);
+        _inkRedo.Push(step);
+    }
+
+    private void InkRedo()
+    {
+        if (_ink is null || _inkRedo.Count == 0) return;
+        var step = _inkRedo.Pop();
+        ApplyInk(remove: step.Removed, add: step.Added);
+        _inkUndo.Push(step);
+    }
+
+    private void ApplyInk(StrokeCollection remove, StrokeCollection add)
+    {
+        _inkApplying = true;
         try
         {
-            Data.Rich = s.Rich;
-            Data.Text = s.Text;
-            LoadDocument();
-            Editor.CaretPosition = Editor.Document.ContentStart.GetPositionAtOffset(s.Caret)
-                                   ?? Editor.Document.ContentEnd;
-
-            Data.Images = s.Images.Select(i => new NoteImage { File = i.File, X = i.X, Y = i.Y, W = i.W, H = i.H }).ToList();
-            Data.Drawings = s.Drawings.Select(d => new NoteDrawing { Id = d.Id, Ink = d.Ink, X = d.X, Y = d.Y }).ToList();
-            Data.Stack = s.Stack.ToList();
-            foreach (var f in Items().ToList()) Body.Children.Remove(f);
-            foreach (var img in Data.Images) AddImageElement(img);
-            foreach (var d in Data.Drawings) AddDrawingElement(d);
-            ApplyStack();
-            ApplyAdvanced();
-
-            _dirty = true;
-            Changed();
-            _history.Stable = Capture();
+            foreach (var s in remove) if (_ink!.Strokes.Contains(s)) _ink.Strokes.Remove(s);
+            foreach (var s in add) if (!_ink!.Strokes.Contains(s)) _ink.Strokes.Add(s);
         }
         finally
         {
-            _restoring = false;
+            _inkApplying = false;
         }
     }
 
-    /// <summary>The arrows, tucked under the REC label: click the label to show them.</summary>
+    // --------------------------------------------------------------- arrows
+
+    /// <summary>
+    /// The arrows, tucked under the REC label. Opened on release, not press:
+    /// opened on press, the release that followed counted as a click outside
+    /// the popup and closed it before an arrow could be reached.
+    /// </summary>
     private void Serial_Click(object sender, MouseButtonEventArgs e)
     {
-        Button Arrow(string glyph, string name, bool enabled, Action act)
+        bool CanUndo() => DrawToggle.IsChecked == true ? _inkUndo.Count > 0 : _undo.Count > 0;
+        bool CanRedo() => DrawToggle.IsChecked == true ? _inkRedo.Count > 0 : _redo.Count > 0;
+
+        Button? undo = null, redo = null;
+        void Refresh()
+        {
+            foreach (var (b, ok) in new[] { (undo!, CanUndo()), (redo!, CanRedo()) })
+            {
+                b.IsEnabled = ok;
+                b.Opacity = ok ? 1 : 0.35;
+            }
+        }
+
+        Button Arrow(string glyph, string name, Action act)
         {
             var b = new Button
             {
                 Style = (Style)FindResource("IconButton"),
                 Content = new TextBlock { Text = glyph, FontSize = 13 },
-                IsEnabled = enabled,
-                Opacity = enabled ? 1 : 0.35,
                 ToolTip = name,
                 Margin = new Thickness(2, 0, 2, 0),
             };
             System.Windows.Automation.AutomationProperties.SetName(b, name);
-            b.Click += (_, _) => act();
+            // The popup stays open so several steps can be taken in a row.
+            b.Click += (_, _) => { act(); Refresh(); };
             return b;
         }
 
-        EndBurst();
+        undo = Arrow("↶", "Undo (Ctrl+Z)", Undo);
+        redo = Arrow("↷", "Redo (Ctrl+Y)", Redo);
         var row = new StackPanel { Orientation = Orientation.Horizontal };
-        row.Children.Add(Arrow("↶", "Undo (Ctrl+Z)", _history.Undo.Count > 0, Undo));
-        row.Children.Add(Arrow("↷", "Redo (Ctrl+Y)", _history.Redo.Count > 0, Redo));
+        row.Children.Add(undo);
+        row.Children.Add(redo);
+        Refresh();
         Picker.Open(Serial, row);
-        e.Handled = true;   // a click on the label is not a drag of the note
+        e.Handled = true;
     }
 }

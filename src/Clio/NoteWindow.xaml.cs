@@ -129,6 +129,7 @@ public partial class NoteWindow : Window
         // Alt, on them too); these run before the editor sees the click.
         PreviewMouseLeftButtonDown += PictureGrab;
         PreviewMouseRightButtonUp += PictureMenuAt;
+        PreviewMouseLeftButtonUp += PictureRelease;
         PreviewMouseMove += PictureHover;
         PreviewKeyDown += SwallowLoneAlt;
         PreviewKeyUp += SwallowLoneAlt;
@@ -439,7 +440,7 @@ public partial class NoteWindow : Window
         if (_suppress) return;
 
         ConvertTodos();
-        TextChangedForUndo();
+        TextChangedForUndo(e);
 
         _dirty = true;
         Data.Edited = DateTime.Now;
@@ -875,6 +876,7 @@ public partial class NoteWindow : Window
     private void Escape()
     {
         if (Confirm.Visibility == Visibility.Visible) Confirm.Visibility = Visibility.Collapsed;
+        else if (_selected.Count > 0) ClearSelection();
         else if (Arranging) ArrangeToggle.IsChecked = false;
         else if (DrawToggle.IsChecked == true) SetDrawing(false);
     }
@@ -884,6 +886,9 @@ public partial class NoteWindow : Window
     private void Header_MouseDown(object sender, MouseButtonEventArgs e)
     {
         if (e.OriginalSource is DependencyObject d && FindParent<ButtonBase>(d) is not null) return;
+        // The REC label opens the undo arrows on release; a drag starting on it
+        // would swallow that release.
+        if (ReferenceEquals(e.OriginalSource, Serial)) return;
         try { DragMove(); }
         catch (InvalidOperationException) { /* button already released */ }
     }
@@ -924,8 +929,7 @@ public partial class NoteWindow : Window
             }
         }
         _sessionNewId = null;
-        _sessionStrokes.Clear();
-        _ink.StrokeCollected += (_, e) => _sessionStrokes.Push(e.Stroke);
+        WatchSession(_ink);
         ApplyPen();
         InkHost.Children.Add(_ink);
         foreach (var f in DrawingFrames()) f.Visibility = Visibility.Hidden;
@@ -988,7 +992,7 @@ public partial class NoteWindow : Window
         _sessionNewId = null;
         RebuildDrawings();   // new drawings land just under the writing (Stack)
         // One undo step for the whole session, and none if nothing changed.
-        var before = _history.Stable?.Drawings.Select(d => d.Id + d.Ink).ToList() ?? new();
+        var before = _stableItems?.Drawings.Select(d => d.Id + d.Ink).ToList() ?? new();
         if (!before.SequenceEqual(Data.Drawings.Select(d => d.Id + d.Ink))) AfterItemChange();
         Changed();
     }

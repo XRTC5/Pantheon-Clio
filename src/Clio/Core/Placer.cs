@@ -81,16 +81,24 @@ internal sealed class Placer
     {
         if (_hwnd == IntPtr.Zero) return;
         _positioning = true;
+        _scaleChanged = false;
         try
         {
-            Native.SetWindowPos(_hwnd, IntPtr.Zero, left, top, width, height,
-                (uint)(Native.SWP.NOZORDER | Native.SWP.NOACTIVATE | Native.SWP.NOOWNERZORDER));
+            const uint flags = (uint)(Native.SWP.NOZORDER | Native.SWP.NOACTIVATE | Native.SWP.NOOWNERZORDER);
+            Native.SetWindowPos(_hwnd, IntPtr.Zero, left, top, width, height, flags);
+
+            // Landing on a display with another scale makes WPF rescale and
+            // resize the window to Windows' suggestion; put back the exact
+            // rectangle that was asked for.
+            if (_scaleChanged) Native.SetWindowPos(_hwnd, IntPtr.Zero, left, top, width, height, flags);
         }
         finally
         {
             _positioning = false;
         }
     }
+
+    private bool _scaleChanged;
 
     /// <summary>Moves without resizing. Used every frame of the collapse animation.</summary>
     public void MoveBy(int left, int top)
@@ -147,14 +155,13 @@ internal sealed class Placer
                 break;
 
             case Native.WM_DPICHANGED:
-                // Honour the suggested rect when the user drags across displays;
-                // swallow it while we are placing the window ourselves, or the
-                // restored rectangle gets rescaled out from under us.
-                if (!_positioning)
-                {
-                    MoveTo(Marshal.PtrToStructure<Native.RECT>(lParam));
-                }
-                handled = true;
+                // Never swallowed: WPF must see this to rescale its contents.
+                // It used to be marked handled, and then a window that crossed
+                // between the 250% and 175% displays kept drawing at the old
+                // scale, so Clio looked shrunk (RTC, 2026-10-31). WPF applies
+                // Windows' suggested rect itself; MoveTo restores an exact rect
+                // when the change came from one of its own placements.
+                if (_positioning) _scaleChanged = true;
                 break;
         }
 

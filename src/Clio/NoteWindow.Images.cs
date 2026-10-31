@@ -42,6 +42,17 @@ public partial class NoteWindow
     private Thickness _dragStart;
     private bool _resizing;
 
+    // Multi-select (Advanced Features, the master switch). A selection stays
+    // until a click elsewhere on the note or Esc; nothing has to be held.
+    private readonly HashSet<Border> _selected = new();
+    private Dictionary<Border, Thickness> _dragGroup = new();
+    private bool _wasSelected;
+    private bool _moved;
+    private System.Windows.Shapes.Rectangle? _box;
+    private Point _boxStart;
+
+    private static bool Selecting => Store.State.Advanced;
+
     private static bool Interactive => Store.State.ImagesOn;
 
     private void LoadItems()
@@ -123,23 +134,6 @@ public partial class NoteWindow
         Panel.SetZIndex(InkHost, s.Count + 1);
     }
 
-    private void Restack(Border frame, Func<int, int, int> target)
-    {
-        var s = Stack();
-        var id = IdOf(frame);
-        var from = s.IndexOf(id);
-        var to = Math.Clamp(target(from, s.Count), 0, s.Count - 1);
-        if (from == to) return;
-
-        BeforeItemChange();
-        s.RemoveAt(from);
-        s.Insert(to, id);
-        Data.Stack = s;
-        ApplyStack();
-        AfterItemChange();
-        Changed();
-    }
-
     private void PutOnTop(string id)
     {
         Data.Stack = Stack().Where(x => x != id).Append(id).ToList();
@@ -174,6 +168,7 @@ public partial class NoteWindow
     private Brush EdgeFor(Border frame, bool hover)
     {
         if (!Interactive) return Brushes.Transparent;
+        if (_selected.Contains(frame)) return (Brush)Resources["NoteAccent"];
         if (hover || _dragging == frame) return (Brush)Resources["NoteAccentSoft"];
         return Arranging ? ArrangeEdge : Brushes.Transparent;
     }
@@ -210,8 +205,98 @@ public partial class NoteWindow
 
     private void PictureGrab(object sender, MouseButtonEventArgs e)
     {
-        if (ItemFor(e) is not { } frame) return;
+        var alt = (Keyboard.Modifiers & ModifierKeys.Alt) != 0;
+        if (ItemFor(e) is { } frame)
+        {
+            PressItem(frame, e, alt);
+            e.Handled = true;
+            return;
+        }
+
+        // Alt+drag over empty space: a selection box.
+        if (alt && Selecting && Interactive && !Arranging && DrawToggle.IsChecked != true
+            && new Rect(Body.RenderSize).Contains(e.GetPosition(Body)))
+        {
+            StartBox(e.GetPosition(Body));
+            e.Handled = true;
+            return;
+        }
+
+        // Any other click on the note lets go of the selection.
+        if (_selected.Count > 0) ClearSelection();
+    }
+
+    /// <summary>
+    /// A press on an item. Alt adds it to the selection (or, if it was already
+    /// in, takes it out again on release, if it was not dragged). A plain press
+    /// on an unselected item selects only that one. Either way a drag moves
+    /// every selected item together.
+    /// </summary>
+    private void PressItem(Border frame, MouseButtonEventArgs e, bool alt)
+    {
+        _wasSelected = _selected.Contains(frame);
+        if (Selecting)
+        {
+            if (!alt && !_wasSelected) ClearSelection();
+            Select(frame);
+        }
         BeginDrag(frame, e.GetPosition(frame));
+    }
+
+    private void Select(Border frame)
+    {
+        _selected.Add(frame);
+        frame.BorderBrush = EdgeFor(frame, hover: false);
+    }
+
+    private void ClearSelection()
+    {
+        var was = _selected.ToList();
+        _selected.Clear();
+        foreach (var f in was) f.BorderBrush = EdgeFor(f, hover: false);
+    }
+
+    private void StartBox(Point at)
+    {
+        _boxStart = at;
+        _box = new System.Windows.Shapes.Rectangle
+        {
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Top,
+            Stroke = (Brush)Resources["NoteAccent"],
+            StrokeThickness = 1,
+            StrokeDashArray = new DoubleCollection { 3, 2 },
+            Fill = (Brush)Resources["NoteAccentSoft"],
+            Opacity = 0.6,
+            IsHitTestVisible = false,
+            Margin = new Thickness(at.X, at.Y, 0, 0),
+        };
+        Panel.SetZIndex(_box, int.MaxValue);
+        Body.Children.Add(_box);
+        Mouse.Capture(Body);
+    }
+
+    private void MoveBox(Point at)
+    {
+        if (_box is null) return;
+        var r = new Rect(_boxStart, at);
+        _box.Margin = new Thickness(r.X, r.Y, 0, 0);
+        _box.Width = r.Width;
+        _box.Height = r.Height;
+    }
+
+    /// <summary>Releasing the box selects whatever it touches, replacing the selection.</summary>
+    private void PictureRelease(object sender, MouseButtonEventArgs e)
+    {
+        if (_box is null) return;
+        var r = new Rect(_boxStart, e.GetPosition(Body));
+        Body.Children.Remove(_box);
+        _box = null;
+        Mouse.Capture(null);
+
+        ClearSelection();
+        foreach (var f in Items().Where(f => f.IsVisible))
+            if (r.IntersectsWith(new Rect(f.TranslatePoint(new Point(), Body), f.RenderSize))) Select(f);
         e.Handled = true;
     }
 
@@ -228,6 +313,7 @@ public partial class NoteWindow
     /// <summary>The move cursor wherever a click would grab an item, so one behind the text does not hide behind an I-beam.</summary>
     private void PictureHover(object sender, MouseEventArgs e)
     {
+        if (_box is not null) { MoveBox(e.GetPosition(Body)); return; }
         if (_dragging is not null || Arranging || !Interactive) return;
         Editor.Cursor = ItemFor(e) is not null ? Cursors.SizeAll : null;
     }
@@ -459,22 +545,59 @@ public partial class NoteWindow
         return bmp;
     }
 
+    /// <summary>The items a menu acts on: the whole selection if this item is part of one.</summary>
+    private List<Border> Targets(Border frame) =>
+        _selected.Contains(frame) && _selected.Count > 1 ? _selected.ToList() : new List<Border> { frame };
+
+    /// <summary>
+    /// Restacks several items at once, keeping their order among themselves.
+    /// To front and to back move the group to the end; forward and backward
+    /// move each one step, the leading one first so they do not collide.
+    /// </summary>
+    private void RestackAll(List<Border> frames, string how)
+    {
+        var s = Stack();
+        var ids = frames.Select(IdOf).OrderBy(s.IndexOf).ToList();
+        if (how is "front" or "back")
+        {
+            s = s.Where(x => !ids.Contains(x)).ToList();
+            if (how == "front") s.AddRange(ids); else s.InsertRange(0, ids);
+        }
+        else
+        {
+            var up = how == "forward";
+            foreach (var id in up ? ids.AsEnumerable().Reverse() : ids)
+            {
+                var i = s.IndexOf(id);
+                var j = up ? i + 1 : i - 1;
+                if (j < 0 || j >= s.Count || ids.Contains(s[j])) continue;
+                (s[i], s[j]) = (s[j], s[i]);
+            }
+        }
+        if (s.SequenceEqual(Stack())) return;
+        Data.Stack = s;
+        ApplyStack();
+        AfterItemChange();
+        Changed();
+    }
+
     private ContextMenu ItemMenu(Border frame)
     {
         var menu = new ContextMenu();
-        MenuItem Order(string header, Func<int, int, int> target)
+        MenuItem Order(string header, string how)
         {
             var item = new MenuItem { Header = header };
-            item.Click += (_, _) => Restack(frame, target);
+            item.Click += (_, _) => RestackAll(Targets(frame), how);
             return item;
         }
 
         // Through the whole stack: one step at a time crosses the other items
         // and the text, and to back puts the item under everything.
-        var forward = Order("Bring forward", (i, _) => i + 1);
-        var front = Order("Bring to front", (_, n) => n - 1);
-        var backward = Order("Send backward", (i, _) => i - 1);
-        var back = Order("Send to back", (_, _) => 0);
+        var remove = new MenuItem();
+        var forward = Order("Bring forward", "forward");
+        var front = Order("Bring to front", "front");
+        var backward = Order("Send backward", "backward");
+        var back = Order("Send to back", "back");
         menu.Items.Add(forward);
         menu.Items.Add(front);
         menu.Items.Add(backward);
@@ -485,26 +608,24 @@ public partial class NoteWindow
         menu.Opened += (_, _) =>
         {
             var s = Stack();
-            var i = s.IndexOf(IdOf(frame));
-            forward.IsEnabled = front.IsEnabled = i < s.Count - 1;
-            backward.IsEnabled = back.IsEnabled = i > 0;
+            var idx = Targets(frame).Select(f => s.IndexOf(IdOf(f))).ToList();
+            forward.IsEnabled = front.IsEnabled = idx.Max() < s.Count - 1 || idx.Count > 1 && idx.Max() - idx.Min() >= idx.Count;
+            backward.IsEnabled = back.IsEnabled = idx.Min() > 0 || idx.Count > 1 && idx.Max() - idx.Min() >= idx.Count;
+            remove.Header = Targets(frame).Count > 1 ? $"Delete {Targets(frame).Count} items"
+                          : frame.Tag is NoteDrawing ? "Delete drawing" : "Remove picture";
         };
 
-        var remove = new MenuItem { Header = frame.Tag is NoteDrawing ? "Delete drawing" : "Remove picture" };
         remove.Click += (_, _) =>
         {
-            BeforeItemChange();
-            Body.Children.Remove(frame);
-            Data.Stack.Remove(IdOf(frame));
-            if (frame.Tag is NoteImage img)
+            foreach (var f in Targets(frame))
             {
-                // The file stays: undo can bring the picture back. Files nothing
+                Body.Children.Remove(f);
+                _selected.Remove(f);
+                Data.Stack.Remove(IdOf(f));
+                // A picture's file stays: undo can bring it back. Files nothing
                 // refers to any more are swept when Clio next starts.
-                Data.Images.Remove(img);
-            }
-            else if (frame.Tag is NoteDrawing d)
-            {
-                Data.Drawings.Remove(d);
+                if (f.Tag is NoteImage img) Data.Images.Remove(img);
+                else if (f.Tag is NoteDrawing d) Data.Drawings.Remove(d);
             }
             ShowArrange();
             AfterItemChange();
@@ -518,7 +639,7 @@ public partial class NoteWindow
 
     private void Item_Down(object sender, MouseButtonEventArgs e)
     {
-        BeginDrag((Border)sender, e.GetPosition((Border)sender));
+        PressItem((Border)sender, e, (Keyboard.Modifiers & ModifierKeys.Alt) != 0);
         e.Handled = true;   // do not also place the text caret underneath
     }
 
@@ -529,6 +650,10 @@ public partial class NoteWindow
         _grabOffset = _resizing ? new Point(frame.ActualWidth - at.X, frame.ActualHeight - at.Y) : at;
         _dragStart = frame.Margin;
         _dragging = frame;
+        _moved = false;
+        // Dragging one selected item moves the whole selection with it.
+        var group = _selected.Contains(frame) && !_resizing ? _selected.ToList() : new List<Border> { frame };
+        _dragGroup = group.ToDictionary(f => f, f => f.Margin);
         BeforeItemChange();
         frame.BorderBrush = EdgeFor(frame, hover: true);
         frame.CaptureMouse();
@@ -562,7 +687,11 @@ public partial class NoteWindow
 
         var left = Math.Clamp(pos.X - _grabOffset.X, -frame.ActualWidth + 24, Body.ActualWidth - 24);
         var top = Math.Clamp(pos.Y - _grabOffset.Y, -frame.ActualHeight + 24, Body.ActualHeight - 24);
-        frame.Margin = new Thickness(left, top, 0, 0);
+        var dx = left - _dragStart.Left;
+        var dy = top - _dragStart.Top;
+        if (dx != 0 || dy != 0) _moved = true;
+        foreach (var (f, start) in _dragGroup)
+            f.Margin = new Thickness(start.Left + dx, start.Top + dy, 0, 0);
     }
 
     private void Item_Up(object sender, MouseButtonEventArgs e)
@@ -575,24 +704,41 @@ public partial class NoteWindow
 
         var dx = frame.Margin.Left - _dragStart.Left;
         var dy = frame.Margin.Top - _dragStart.Top;
-        switch (frame.Tag)
+        if (_resizing && frame.Tag is NoteImage resized && frame.Child is Image picture)
         {
-            case NoteImage img when _resizing && frame.Child is Image picture:
-                // Decode again at the new size: sharp if it grew, smaller if it shrank.
-                picture.Source = Decode(Path.Combine(Store.ImagesDir, img.File), img.W);
-                break;
-            case NoteImage img:
-                img.X = frame.Margin.Left;
-                img.Y = frame.Margin.Top;
-                break;
-            case NoteDrawing d:
-                d.X += dx;
-                d.Y += dy;
-                break;
+            // Decode again at the new size: sharp if it grew, smaller if it shrank.
+            picture.Source = Decode(Path.Combine(Store.ImagesDir, resized.File), resized.W);
+            _moved = true;
         }
+        else
+        {
+            foreach (var f in _dragGroup.Keys)
+            {
+                switch (f.Tag)
+                {
+                    case NoteImage img:
+                        img.X = f.Margin.Left;
+                        img.Y = f.Margin.Top;
+                        break;
+                    case NoteDrawing d:
+                        d.X += dx;
+                        d.Y += dy;
+                        break;
+                }
+            }
+        }
+
+        // Alt+click on an item that was already selected, without dragging it:
+        // take it out of the selection.
+        if (!_moved && _wasSelected && (Keyboard.Modifiers & ModifierKeys.Alt) != 0)
+        {
+            _selected.Remove(frame);
+            frame.BorderBrush = EdgeFor(frame, hover: frame.IsMouseOver);
+        }
+        _dragGroup = new();
         _resizing = false;
         // A click that did not move or resize anything is not an undo step.
-        if (dx != 0 || dy != 0 || frame.Tag is NoteImage) AfterItemChange();
+        if (_moved) AfterItemChange();
         Changed();
     }
 

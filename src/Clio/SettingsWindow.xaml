@@ -60,31 +60,46 @@
                                   AutomationProperties.Name="Keep notes on top" />
                 </Grid>
 
-                <!-- advanced features: a master switch, ticks under it -->
+                <!-- advanced features: a dropdown. The master switch turns on
+                     multi-select; the chevron shows the feature ticks under it. -->
                 <Rectangle Height="1" Fill="{StaticResource RuleSoft}" Margin="14,14,14,0" />
                 <Grid Margin="14,12,14,0">
-                    <StackPanel>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <ToggleButton x:Name="AdvancedExpand" Style="{StaticResource IconToggle}" Width="18" Margin="-4,0,4,0"
+                                  VerticalAlignment="Top" Checked="Expand_Click" Unchecked="Expand_Click"
+                                  ToolTip="Show the advanced features" AutomationProperties.Name="Show advanced features">
+                        <Path x:Name="AdvancedChevron" Data="M 0,0 L 3,3 L 0,6" StrokeThickness="1.2"
+                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" />
+                    </ToggleButton>
+                    <StackPanel Grid.Column="1">
                         <TextBlock Text="Advanced features" FontFamily="{StaticResource UiFont}" FontSize="12"
                                    Foreground="{StaticResource TextHi}" />
-                        <TextBlock Text="Pictures, movable drawings and more." FontFamily="{StaticResource UiFont}"
-                                   FontSize="10" Foreground="{StaticResource TextLow}" Margin="0,2,0,0" />
+                        <TextBlock Text="Multi-select: Alt+click items, or Alt+drag a box around them."
+                                   FontFamily="{StaticResource UiFont}" FontSize="10" Foreground="{StaticResource TextLow}"
+                                   Margin="0,2,0,0" TextWrapping="Wrap" MaxWidth="160" HorizontalAlignment="Left" />
                     </StackPanel>
-                    <ToggleButton x:Name="AdvancedSwitch" Style="{StaticResource Switch}" HorizontalAlignment="Right"
+                    <ToggleButton x:Name="AdvancedSwitch" Grid.Column="2" Style="{StaticResource Switch}"
                                   VerticalAlignment="Center" Checked="Advanced_Click" Unchecked="Advanced_Click"
                                   AutomationProperties.Name="Advanced features" />
                 </Grid>
-                <Grid x:Name="ImagesRow" Margin="28,10,14,0">
-                    <StackPanel>
-                        <TextBlock Text="Images" FontFamily="{StaticResource UiFont}" FontSize="12"
-                                   Foreground="{StaticResource TextHi}" />
-                        <TextBlock Text="Paste pictures. Drag and restack pictures and drawings."
-                                   FontFamily="{StaticResource UiFont}" FontSize="10" Foreground="{StaticResource TextLow}"
-                                   Margin="0,2,0,0" TextWrapping="Wrap" MaxWidth="170" HorizontalAlignment="Left" />
-                    </StackPanel>
-                    <ToggleButton x:Name="ImagesSwitch" Style="{StaticResource Switch}" HorizontalAlignment="Right"
-                                  VerticalAlignment="Center" Checked="Images_Click" Unchecked="Images_Click"
-                                  AutomationProperties.Name="Images" />
-                </Grid>
+                <StackPanel x:Name="AdvancedRows" Visibility="Collapsed">
+                    <Grid x:Name="ImagesRow" Margin="32,10,14,0">
+                        <StackPanel>
+                            <TextBlock Text="Images" FontFamily="{StaticResource UiFont}" FontSize="12"
+                                       Foreground="{StaticResource TextHi}" />
+                            <TextBlock Text="Paste pictures. Drag and restack pictures and drawings."
+                                       FontFamily="{StaticResource UiFont}" FontSize="10" Foreground="{StaticResource TextLow}"
+                                       Margin="0,2,0,0" TextWrapping="Wrap" MaxWidth="160" HorizontalAlignment="Left" />
+                        </StackPanel>
+                        <ToggleButton x:Name="ImagesSwitch" Style="{StaticResource Switch}" HorizontalAlignment="Right"
+                                      VerticalAlignment="Center" Checked="Images_Click" Unchecked="Images_Click"
+                                      AutomationProperties.Name="Images" />
+                    </Grid>
+                </StackPanel>
 
                 <!-- history -->
                 <Rectangle Height="1" Fill="{StaticResource RuleSoft}" Margin="14,14,14,0" />

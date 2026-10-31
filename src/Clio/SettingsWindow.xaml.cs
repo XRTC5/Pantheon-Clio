@@ -40,8 +40,8 @@ public partial class SettingsWindow : Window
         AdvancedSwitch.IsChecked = s.Advanced;
         ImagesSwitch.IsChecked = s.AdvImages;
         // The ticks under the master switch only mean something while it is on.
-        ImagesRow.IsEnabled = s.Advanced;
-        ImagesRow.Opacity = s.Advanced ? 1 : 0.4;
+        AdvancedRows.IsEnabled = s.Advanced;
+        AdvancedRows.Opacity = s.Advanced ? 1 : 0.4;
         _syncing = false;
         DaysLabel.Text = s.HistoryDays == 1 ? "1 day" : $"{s.HistoryDays} days";
         HistoryButton.Content = s.History.Count == 0 ? "OPEN HISTORY" : $"OPEN HISTORY  /  {s.History.Count}";
@@ -56,11 +56,20 @@ public partial class SettingsWindow : Window
         System.Threading.Tasks.Task.Run(() => Startup.Set(on));
     }
 
+    /// <summary>The dropdown: the chevron opens and closes the feature ticks.</summary>
+    private void Expand_Click(object sender, RoutedEventArgs e)
+    {
+        var open = AdvancedExpand.IsChecked == true;
+        AdvancedRows.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+        AdvancedChevron.Data = System.Windows.Media.Geometry.Parse(open ? "M 0,0 L 3,3 L 6,0" : "M 0,0 L 3,3 L 0,6");
+    }
+
     private void Advanced_Click(object sender, RoutedEventArgs e)
     {
         if (_syncing) return;
         Store.State.Advanced = AdvancedSwitch.IsChecked == true;
         Store.Save();
+        if (Store.State.Advanced) AdvancedExpand.IsChecked = true;
         Refresh();
         _notes.RefreshAdvanced();
     }

@@ -67,7 +67,7 @@
                           Data="M 1.5,4.5 L 1.5,3 A 2.5,2.5 0 0 1 6.5,3 L 6.5,4.5 M 0.5,4.5 L 7.5,4.5 L 7.5,10 L 0.5,10 Z"
                           Stroke="{DynamicResource NoteAccent}" StrokeThickness="1.1" StrokeLineJoin="Round" />
                     <TextBlock x:Name="Serial" Text="REC 001" FontFamily="{StaticResource MonoFont}"
-                               Cursor="Hand" MouseLeftButtonDown="Serial_Click"
+                               Cursor="Hand" MouseLeftButtonUp="Serial_Click"
                                ToolTip="Undo and redo (Ctrl+Z, Ctrl+Y)"
                                FontSize="9.5" Foreground="{DynamicResource NoteAccent}" VerticalAlignment="Center" />
                     <TextBlock x:Name="Stamp" Text="" FontFamily="{StaticResource MonoFont}" Margin="8,0,0,0"
@@ -204,7 +204,7 @@
                              BorderThickness="0" Padding="0"
                              Foreground="{StaticResource TextHi}" CaretBrush="{DynamicResource NoteAccent}"
                              SelectionBrush="{DynamicResource NoteAccent}" SelectionOpacity="0.3"
-                             AcceptsReturn="True" AcceptsTab="True" IsUndoEnabled="False" IsDocumentEnabled="False"
+                             AcceptsReturn="True" AcceptsTab="True" IsUndoEnabled="True" UndoLimit="100" IsDocumentEnabled="False"
                              VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                              TextChanged="Editor_TextChanged" SelectionChanged="Editor_SelectionChanged"
                              PreviewMouseLeftButtonDown="Editor_PreviewMouseDown">
