@@ -95,8 +95,6 @@ public partial class NoteWindow : Window
         ApplyAccent();
         ApplyClear();
 
-        // Only a note that already carries a drawing pays for an InkCanvas.
-        if (data.Ink is not null) EnsureInk();
 
         Placer = new Placer(this, resizable: true) { Pinned = data.Pinned };
         Placer.Attach();
@@ -104,7 +102,7 @@ public partial class NoteWindow : Window
 
         // After the handle exists and the window sits on its display: pictures
         // are decoded at that display's scale, and before it they would read 96 DPI.
-        LoadImages();
+        LoadItems();
         Placer.Settled += r =>
         {
             Data.Rect = r;
@@ -137,7 +135,7 @@ public partial class NoteWindow : Window
         // when the click belongs to a picture.
         Editor.ContextMenuOpening += (_, e) =>
         {
-            if (PictureFor(Mouse.GetPosition(Body), Mouse.GetPosition(Editor)) is not null)
+            if (ItemFor(Mouse.GetPosition(Body), Mouse.GetPosition(Editor)) is not null)
                 e.Handled = true;
         };
 
@@ -268,6 +266,9 @@ public partial class NoteWindow : Window
     /// <summary>Called by Store just before it writes: the one place XAML is produced.</summary>
     internal void Flush()
     {
+        // A save during a doodle session (or Clio closing mid-drawing) keeps
+        // the strokes: the canvas is split into drawings now, not only at Done.
+        SessionToData();
         if (!_dirty) return;
         _dirty = false;
 
@@ -842,7 +843,7 @@ public partial class NoteWindow : Window
             // A picture on the clipboard becomes a free-floating picture; text
             // falls through to the editor's own paste.
             (true, false, false, Key.V) => TryPastePicture(),
-            (true, false, false, Key.D) => Handle(() => SetDrawing(_ink is null || !_ink.IsHitTestVisible)),
+            (true, false, false, Key.D) => Handle(() => SetDrawing(DrawToggle.IsChecked != true)),
             (true, false, false, Key.B) => Handle(ToggleBold),
             (true, false, false, Key.I) => Handle(ToggleItalic),
             (true, false, false, Key.U) => Handle(() => ToggleDecoration(TextDecorationLocation.Underline)),
@@ -870,7 +871,7 @@ public partial class NoteWindow : Window
     {
         if (Confirm.Visibility == Visibility.Visible) Confirm.Visibility = Visibility.Collapsed;
         else if (Arranging) ArrangeToggle.IsChecked = false;
-        else if (_ink?.IsHitTestVisible == true) SetDrawing(false);
+        else if (DrawToggle.IsChecked == true) SetDrawing(false);
     }
 
     // ---------------------------------------------------------------- move
@@ -893,46 +894,93 @@ public partial class NoteWindow : Window
 
     // ---------------------------------------------------------------- ink
 
-    private void EnsureInk()
+    /// <summary>Tags each stroke in a doodle session with the drawing it came from.</summary>
+    private static readonly Guid DrawingKey = new("6f1c2a40-5b7e-4f7e-9d0a-c110d0a1e5e1");
+
+    /// <summary>Id for the drawing this session's new strokes become, fixed once chosen.</summary>
+    private string? _sessionNewId;
+
+    /// <summary>
+    /// A doodle session draws on one canvas holding every drawing on the note,
+    /// so the eraser reaches old drawings too. Each stroke carries the id of
+    /// the drawing it came from; new strokes carry none. The drawing items
+    /// are hidden while the session runs.
+    /// </summary>
+    private void BeginSession()
     {
         if (_ink is not null) return;
-
-        _ink = new InkCanvas { Background = null, IsHitTestVisible = false };
-
-        if (Data.Ink is { } b64)
+        _ink = new InkCanvas { Background = Brushes.Transparent };
+        foreach (var d in Data.Drawings)
         {
-            try
+            foreach (var stroke in LoadStrokes(d))
             {
-                using var ms = new MemoryStream(Convert.FromBase64String(b64));
-                _ink.Strokes = new StrokeCollection(ms);
-            }
-            catch (Exception ex)
-            {
-                Log.Error($"ink for {Data.Id} unreadable", ex);
+                stroke.AddPropertyData(DrawingKey, d.Id);
+                _ink.Strokes.Add(stroke);
             }
         }
-
-        _ink.Strokes.StrokesChanged += (_, _) => SaveInk();
+        _sessionNewId = null;
         ApplyPen();
         InkHost.Children.Add(_ink);
+        foreach (var f in DrawingFrames()) f.Visibility = Visibility.Hidden;
     }
 
-    private void SaveInk()
+    /// <summary>
+    /// Splits the canvas back into drawings: strokes go home by their tag,
+    /// untagged ones form this session's new drawing, and a drawing whose
+    /// strokes were all erased is gone. Offsets are folded into the strokes.
+    /// Safe to call mid-session (a save while drawing), and again at the end.
+    /// </summary>
+    private void SessionToData()
     {
         if (_ink is null) return;
-        if (_ink.Strokes.Count == 0)
+
+        var groups = new Dictionary<string, StrokeCollection>();
+        foreach (var stroke in _ink.Strokes)
         {
-            Data.Ink = null;
+            var id = stroke.ContainsPropertyData(DrawingKey)
+                ? (string)stroke.GetPropertyData(DrawingKey)
+                : _sessionNewId ??= Guid.NewGuid().ToString("N")[..8];
+            var copy = stroke.Clone();
+            if (copy.ContainsPropertyData(DrawingKey)) copy.RemovePropertyData(DrawingKey);
+            if (!groups.TryGetValue(id, out var g)) groups[id] = g = new StrokeCollection();
+            g.Add(copy);
         }
-        else
+
+        static string Isf(StrokeCollection strokes)
         {
             using var ms = new MemoryStream();
-            _ink.Strokes.Save(ms, compress: true);
-            Data.Ink = Convert.ToBase64String(ms.ToArray());
+            strokes.Save(ms, compress: true);
+            return Convert.ToBase64String(ms.ToArray());
         }
-        Data.Edited = DateTime.Now;
-        RefreshMeta();
-        Store.SaveSoon();
+
+        foreach (var d in Data.Drawings.ToList())
+        {
+            if (groups.Remove(d.Id, out var mine))
+            {
+                d.Ink = Isf(mine);
+                d.X = d.Y = 0;
+            }
+            else
+            {
+                Data.Drawings.Remove(d);
+                Data.Stack.Remove("d:" + d.Id);
+            }
+        }
+        foreach (var (id, strokes) in groups)
+            Data.Drawings.Add(new NoteDrawing { Id = id, Ink = Isf(strokes) });
+
+        Data.Ink = null;
+    }
+
+    private void EndSession()
+    {
+        if (_ink is null) return;
+        SessionToData();
+        InkHost.Children.Clear();
+        _ink = null;
+        _sessionNewId = null;
+        RebuildDrawings();   // new drawings land just under the writing (Stack)
+        Changed();
     }
 
     private void SetDrawing(bool on)
@@ -940,30 +988,15 @@ public partial class NoteWindow : Window
         // Pen swatches are built on first use: most notes are never drawn on.
         if (on && Swatches.Children.Count == 0) BuildSwatches();
         if (on && Arranging) ArrangeToggle.IsChecked = false;   // one mode at a time
-        if (on) EnsureInk();
-        if (_ink is null) return;
+        if (on) BeginSession();
+        else EndSession();
 
-        // An InkCanvas with a null background is invisible to the mouse, so
-        // the text underneath stays editable; Transparent makes it catch strokes.
-        _ink.Background = on ? Brushes.Transparent : null;
-        _ink.IsHitTestVisible = on;
         DrawBar.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
         _syncing = true;
         DrawToggle.IsChecked = on;
         _syncing = false;
-
-        // Lift the ink over the text while drawing, drop it back after (ApplyStack).
         ApplyStack();
         Editor.Cursor = null;
-
-        if (!on && _ink.Strokes.Count == 0)
-        {
-            // Nothing was drawn: drop the canvas so this note stays as cheap
-            // as a note that was never drawn on.
-            InkHost.Children.Clear();
-            _ink = null;
-            Data.Ink = null;
-        }
     }
 
     private void Draw_Click(object sender, RoutedEventArgs e)

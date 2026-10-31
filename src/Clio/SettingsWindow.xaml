@@ -60,6 +60,32 @@
                                   AutomationProperties.Name="Keep notes on top" />
                 </Grid>
 
+                <!-- advanced features: a master switch, ticks under it -->
+                <Rectangle Height="1" Fill="{StaticResource RuleSoft}" Margin="14,14,14,0" />
+                <Grid Margin="14,12,14,0">
+                    <StackPanel>
+                        <TextBlock Text="Advanced features" FontFamily="{StaticResource UiFont}" FontSize="12"
+                                   Foreground="{StaticResource TextHi}" />
+                        <TextBlock Text="Pictures, movable drawings and more." FontFamily="{StaticResource UiFont}"
+                                   FontSize="10" Foreground="{StaticResource TextLow}" Margin="0,2,0,0" />
+                    </StackPanel>
+                    <ToggleButton x:Name="AdvancedSwitch" Style="{StaticResource Switch}" HorizontalAlignment="Right"
+                                  VerticalAlignment="Center" Checked="Advanced_Click" Unchecked="Advanced_Click"
+                                  AutomationProperties.Name="Advanced features" />
+                </Grid>
+                <Grid x:Name="ImagesRow" Margin="28,10,14,0">
+                    <StackPanel>
+                        <TextBlock Text="Images" FontFamily="{StaticResource UiFont}" FontSize="12"
+                                   Foreground="{StaticResource TextHi}" />
+                        <TextBlock Text="Paste pictures. Drag and restack pictures and drawings."
+                                   FontFamily="{StaticResource UiFont}" FontSize="10" Foreground="{StaticResource TextLow}"
+                                   Margin="0,2,0,0" TextWrapping="Wrap" MaxWidth="170" HorizontalAlignment="Left" />
+                    </StackPanel>
+                    <ToggleButton x:Name="ImagesSwitch" Style="{StaticResource Switch}" HorizontalAlignment="Right"
+                                  VerticalAlignment="Center" Checked="Images_Click" Unchecked="Images_Click"
+                                  AutomationProperties.Name="Images" />
+                </Grid>
+
                 <!-- history -->
                 <Rectangle Height="1" Fill="{StaticResource RuleSoft}" Margin="14,14,14,0" />
                 <Grid Margin="14,12,14,0">

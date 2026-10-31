@@ -48,6 +48,13 @@ public sealed class NoteData
     public List<NoteImage> Images { get; set; } = new();
 
     /// <summary>
+    /// Drawings, one per doodle session (RTC's call: everything between the pen
+    /// and Done is one drawing). Replaces the single <see cref="Ink"/> blob, which
+    /// an older note still has and which is migrated into one drawing on load.
+    /// </summary>
+    public List<NoteDrawing> Drawings { get; set; } = new();
+
+    /// <summary>
     /// Draw order of everything on the note, bottom first: "text", "ink", and
     /// each picture by file name. Empty or partial (an older note) resolves to
     /// the default: pictures at the back, then drawings, then writing on top.
@@ -98,6 +105,19 @@ public sealed class ClioState
 
     public bool RunOnStartup { get; set; } = true;
 
+    /// <summary>
+    /// Advanced Features, the master switch. Off is plain Clio: no picture
+    /// pasting, nothing to drag or restack, no Alt behaviour, no Arrange button.
+    /// </summary>
+    public bool Advanced { get; set; }
+
+    /// <summary>Advanced: paste pictures; pictures and drawings drag and restack.</summary>
+    public bool AdvImages { get; set; }
+
+    /// <summary>Pictures and drawings are movable only with both switches on.</summary>
+    [JsonIgnore]
+    public bool ImagesOn => Advanced && AdvImages;
+
     /// <summary>Drops History entries older than the retention. True if any went.</summary>
     /// <summary>Drops History entries older than the retention, deleting their picture files.</summary>
     public bool Purge()
@@ -117,6 +137,19 @@ public sealed class ClioState
 /// One pasted picture. Position and size are in device-independent units
 /// relative to the note's body, so they survive a move between displays.
 /// </summary>
+/// <summary>
+/// One drawing: strokes as base64 ISF in the note body's coordinates, plus the
+/// offset it has been dragged by since (folded back into the strokes the next
+/// time the note is drawn on).
+/// </summary>
+public sealed class NoteDrawing
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString("N")[..8];
+    public string Ink { get; set; } = "";
+    public double X { get; set; }
+    public double Y { get; set; }
+}
+
 public sealed class NoteImage
 {
     public string File { get; set; } = "";

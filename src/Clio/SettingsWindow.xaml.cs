@@ -37,6 +37,11 @@ public partial class SettingsWindow : Window
         _syncing = true;
         StartupSwitch.IsChecked = s.RunOnStartup;
         TopSwitch.IsChecked = s.Layer == Layer.OnTop;
+        AdvancedSwitch.IsChecked = s.Advanced;
+        ImagesSwitch.IsChecked = s.AdvImages;
+        // The ticks under the master switch only mean something while it is on.
+        ImagesRow.IsEnabled = s.Advanced;
+        ImagesRow.Opacity = s.Advanced ? 1 : 0.4;
         _syncing = false;
         DaysLabel.Text = s.HistoryDays == 1 ? "1 day" : $"{s.HistoryDays} days";
         HistoryButton.Content = s.History.Count == 0 ? "OPEN HISTORY" : $"OPEN HISTORY  /  {s.History.Count}";
@@ -49,6 +54,23 @@ public partial class SettingsWindow : Window
         Store.State.RunOnStartup = on;
         Store.Save();
         System.Threading.Tasks.Task.Run(() => Startup.Set(on));
+    }
+
+    private void Advanced_Click(object sender, RoutedEventArgs e)
+    {
+        if (_syncing) return;
+        Store.State.Advanced = AdvancedSwitch.IsChecked == true;
+        Store.Save();
+        Refresh();
+        _notes.RefreshAdvanced();
+    }
+
+    private void Images_Click(object sender, RoutedEventArgs e)
+    {
+        if (_syncing) return;
+        Store.State.AdvImages = ImagesSwitch.IsChecked == true;
+        Store.Save();
+        _notes.RefreshAdvanced();
     }
 
     private void Top_Click(object sender, RoutedEventArgs e)

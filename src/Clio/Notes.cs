@@ -328,6 +328,12 @@ internal sealed class Notes
         ShowNearHub(_history, resizable: true);
     }
 
+    /// <summary>Advanced Features changed: every open note locks or unlocks its items.</summary>
+    public void RefreshAdvanced()
+    {
+        foreach (var w in _open.Values) w.ApplyAdvanced();
+    }
+
     private void RefreshDialogs()
     {
         _settings?.Refresh();
