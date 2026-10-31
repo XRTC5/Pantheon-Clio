@@ -60,7 +60,12 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0" ClipToBounds="True">
-                    <Rectangle Width="2" Height="10" Fill="{DynamicResource NoteAccent}" Margin="0,0,7,0" />
+                    <!-- The accent tick, which turns into a small lock while the note is
+                         locked on top: the state is visible without a header button. -->
+                    <Rectangle x:Name="Tick" Width="2" Height="10" Fill="{DynamicResource NoteAccent}" Margin="0,0,7,0" />
+                    <Path x:Name="PinMark" Visibility="Collapsed" Margin="0,0,6,0" VerticalAlignment="Center"
+                          Data="M 1.5,4.5 L 1.5,3 A 2.5,2.5 0 0 1 6.5,3 L 6.5,4.5 M 0.5,4.5 L 7.5,4.5 L 7.5,10 L 0.5,10 Z"
+                          Stroke="{DynamicResource NoteAccent}" StrokeThickness="1.1" StrokeLineJoin="Round" />
                     <TextBlock x:Name="Serial" Text="REC 001" FontFamily="{StaticResource MonoFont}"
                                FontSize="9.5" Foreground="{DynamicResource NoteAccent}" VerticalAlignment="Center" />
                     <TextBlock x:Name="Stamp" Text="" FontFamily="{StaticResource MonoFont}" Margin="8,0,0,0"

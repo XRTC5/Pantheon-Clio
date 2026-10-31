@@ -98,7 +98,7 @@ public partial class NoteWindow : Window
         // Only a note that already carries a drawing pays for an InkCanvas.
         if (data.Ink is not null) EnsureInk();
 
-        Placer = new Placer(this, resizable: true);
+        Placer = new Placer(this, resizable: true) { Pinned = data.Pinned };
         Placer.Attach();
         Placer.MoveTo(data.Rect);
         Placer.Settled += r =>
@@ -120,6 +120,7 @@ public partial class NoteWindow : Window
         // Not on SourceInitialized: Attach has already created the handle, so
         // that event has fired and a handler added now would never run.
         Placer.ApplyLayer();
+        ShowPinMark();
         PreviewKeyDown += OnKey;
 
         // Anything the user does keeps the note awake (see Notes.SleepIdle).
@@ -314,6 +315,28 @@ public partial class NoteWindow : Window
         Grid.SetRowSpan(WashLayer, clear ? 2 : 4);
     }
 
+    /// <summary>A padlock, shut and lit in the accent when locked, open and dim when not.</summary>
+    private UIElement LockGlyph(bool locked)
+    {
+        var ink = locked ? (Brush)Resources["NoteAccent"] : (Brush)FindResource("TextMid");
+        var shackle = locked
+            ? "M 3,6 L 3,4 A 3,3 0 0 1 9,4 L 9,6"
+            : "M 3,6 L 3,4 A 3,3 0 0 1 9,4";   // open: the right leg lifted out
+        var g = new Grid { Width = 12, Height = 14 };
+        g.Children.Add(new System.Windows.Shapes.Path
+        {
+            Data = Geometry.Parse(shackle + " M 1,6 L 11,6 L 11,13 L 1,13 Z"),
+            Stroke = ink, StrokeThickness = 1.3, StrokeLineJoin = PenLineJoin.Round,
+        });
+        return g;
+    }
+
+    private void ShowPinMark()
+    {
+        Tick.Visibility = Data.Pinned ? Visibility.Collapsed : Visibility.Visible;
+        PinMark.Visibility = Data.Pinned ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     private void Color_Click(object sender, RoutedEventArgs e)
     {
         var list = new StackPanel();
@@ -367,7 +390,24 @@ public partial class NoteWindow : Window
         clear.HorizontalContentAlignment = HorizontalAlignment.Center;
         clear.ToolTip = hint;
         System.Windows.Automation.AutomationProperties.SetName(clear, hint);
-        list.Children.Add(clear);
+
+        var pinHint = Data.Pinned ? "Unlock: let it fall behind other windows" : "Lock this note on top";
+        var pin = Picker.Row(this, LockGlyph(Data.Pinned), () =>
+        {
+            Data.Pinned = !Data.Pinned;
+            Placer.Pinned = Data.Pinned;
+            Placer.ApplyLayer();
+            ShowPinMark();
+            Store.SaveSoon();
+        });
+        pin.HorizontalContentAlignment = HorizontalAlignment.Center;
+        pin.ToolTip = pinHint;
+        System.Windows.Automation.AutomationProperties.SetName(pin, Data.Pinned ? "Unlock" : "Lock on top");
+
+        var tools = new UniformGrid { Columns = 2 };
+        tools.Children.Add(clear);
+        tools.Children.Add(pin);
+        list.Children.Add(tools);
 
         Picker.CloseOnPick(list, Picker.Open(ColorButton, list));
     }

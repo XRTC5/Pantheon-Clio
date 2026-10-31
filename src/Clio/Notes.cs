@@ -182,7 +182,7 @@ internal sealed class Notes
             _views[w.Data.Id] = w.View;
 
             var ghost = new Ghost(w.Data, pixels, rect, below: w.Placer.Handle,
-                                  topmost: Store.State.Layer == Layer.OnTop);
+                                  topmost: Store.State.Layer == Layer.OnTop || w.Data.Pinned);
             ghost.Woken += Wake;
             _ghosts[w.Data.Id] = ghost;
             w.Close();
@@ -473,7 +473,7 @@ internal sealed class Notes
         Store.Save();
         _hub.Placer.ApplyLayer();
         foreach (var w in _open.Values) w.Placer.ApplyLayer();
-        foreach (var g in _ghosts.Values) g.ApplyLayer(layer == Layer.OnTop);
+        foreach (var g in _ghosts.Values) g.ApplyLayer(layer == Layer.OnTop || g.Data.Pinned);
         _hub.Refresh();
         RefreshDialogs();
     }

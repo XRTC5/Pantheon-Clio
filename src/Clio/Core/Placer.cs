@@ -107,10 +107,14 @@ internal sealed class Placer
         }
     }
 
+    /// <summary>One window held on top regardless of the shared layer (a locked note).</summary>
+    public bool Pinned { get; set; }
+
     public void ApplyLayer()
     {
         if (_hwnd == IntPtr.Zero || !_followLayer) return;
-        var after = Store.State.Layer == Layer.OnTop ? Native.HWND_TOPMOST : Native.HWND_NOTOPMOST;
+        var top = Store.State.Layer == Layer.OnTop || Pinned;
+        var after = top ? Native.HWND_TOPMOST : Native.HWND_NOTOPMOST;
         Native.SetWindowPos(_hwnd, after, 0, 0, 0, 0,
             (uint)(Native.SWP.NOMOVE | Native.SWP.NOSIZE | Native.SWP.NOACTIVATE));
     }

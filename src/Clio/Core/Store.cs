@@ -41,6 +41,9 @@ public sealed class NoteData
     /// </summary>
     public bool Clear { get; set; }
 
+    /// <summary>Locked on top: this note stays above other windows whatever the shared layer is.</summary>
+    public bool Pinned { get; set; }
+
     /// <summary>Physical pixels. Restored verbatim, the Argus placement rule.</summary>
     public int Left { get; set; }
     public int Top { get; set; }
