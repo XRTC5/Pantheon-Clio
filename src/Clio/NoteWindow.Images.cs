@@ -178,9 +178,53 @@ public partial class NoteWindow
         return bmp;
     }
 
+    /// <summary>
+    /// Stacking order, as in any drawing app. The order of Data.Images is the
+    /// order of the layer's children, so it is saved with the note and comes
+    /// back the same after a restart.
+    /// </summary>
+    private void Restack(Border frame, int to)
+    {
+        var img = (NoteImage)frame.Tag;
+        var from = Data.Images.IndexOf(img);
+        to = Math.Clamp(to, 0, Data.Images.Count - 1);
+        if (from < 0 || from == to) return;
+
+        Data.Images.RemoveAt(from);
+        Data.Images.Insert(to, img);
+        ImageLayer.Children.Remove(frame);
+        ImageLayer.Children.Insert(to, frame);
+        Changed();
+    }
+
     private ContextMenu PictureMenu(Border frame)
     {
         var menu = new ContextMenu();
+        MenuItem Order(string header, Func<int, int> target)
+        {
+            var item = new MenuItem { Header = header };
+            item.Click += (_, _) => Restack(frame, target(Data.Images.IndexOf((NoteImage)frame.Tag)));
+            return item;
+        }
+
+        var forward = Order("Bring forward", i => i + 1);
+        var front = Order("Bring to front", _ => Data.Images.Count - 1);
+        var backward = Order("Send backward", i => i - 1);
+        var back = Order("Send to back", _ => 0);
+        menu.Items.Add(forward);
+        menu.Items.Add(front);
+        menu.Items.Add(backward);
+        menu.Items.Add(back);
+        menu.Items.Add(new Separator());
+
+        // Greyed out when there is nowhere to go: already on top, or at the bottom.
+        menu.Opened += (_, _) =>
+        {
+            var i = Data.Images.IndexOf((NoteImage)frame.Tag);
+            forward.IsEnabled = front.IsEnabled = i < Data.Images.Count - 1;
+            backward.IsEnabled = back.IsEnabled = i > 0;
+        };
+
         var remove = new MenuItem { Header = "Remove picture" };
         remove.Click += (_, _) =>
         {
