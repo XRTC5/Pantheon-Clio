@@ -47,6 +47,13 @@ public sealed class NoteData
     /// <summary>Pasted pictures, free-floating over the body. Files live in Store.ImagesDir.</summary>
     public List<NoteImage> Images { get; set; } = new();
 
+    /// <summary>
+    /// Draw order of everything on the note, bottom first: "text", "ink", and
+    /// each picture by file name. Empty or partial (an older note) resolves to
+    /// the default: pictures at the back, then drawings, then writing on top.
+    /// </summary>
+    public List<string> Stack { get; set; } = new();
+
     /// <summary>Physical pixels. Restored verbatim, the Argus placement rule.</summary>
     public int Left { get; set; }
     public int Top { get; set; }

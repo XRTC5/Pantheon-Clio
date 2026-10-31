@@ -73,6 +73,18 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="0,0,5,0" VerticalAlignment="Center">
+                    <!-- Arrange mode: typing pauses and pictures (even those behind the
+                         text) can be grabbed. Shown only on a note that has pictures,
+                         so a plain note's header stays as it was. Alt-drag does the
+                         same for a single quick move without the mode. -->
+                    <ToggleButton x:Name="ArrangeToggle" Style="{StaticResource IconToggle}" Width="20"
+                                  Visibility="Collapsed" Checked="Arrange_Changed" Unchecked="Arrange_Changed"
+                                  ToolTip="Arrange: move pictures, even behind the text (Esc to finish). Or hold Alt and drag."
+                                  AutomationProperties.Name="Arrange">
+                        <Path Data="M 5,0 L 5,10 M 0,5 L 10,5 M 3,2 L 5,0 L 7,2 M 3,8 L 5,10 L 7,8 M 2,3 L 0,5 L 2,7 M 8,3 L 10,5 L 8,7"
+                              StrokeThickness="1.1" StrokeLineJoin="Round"
+                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" />
+                    </ToggleButton>
                     <Button Style="{StaticResource IconButton}" Click="New_Click" ToolTip="New note (Ctrl+N)"
                             AutomationProperties.Name="New note" Width="20">
                         <Path Data="M 4,0 L 4,8 M 0,4 L 8,4" StrokeThickness="1.2"
@@ -178,7 +190,10 @@
             </WrapPanel>
 
             <!-- ========================================================= body -->
-            <Grid x:Name="Body" Grid.Row="2" Margin="10,6,6,8">
+            <!-- The note's stage. Text, the drawing layer and each picture are all
+                 children here, and Panel.ZIndex (from NoteData.Stack) decides who
+                 is on top; see NoteWindow.Images.cs ApplyStack. -->
+            <Grid x:Name="Body" Grid.Row="2" Margin="10,6,6,8" ClipToBounds="True">
                 <TextBlock x:Name="Placeholder" Text="record something.  /todo for a checkbox"
                            FontFamily="{StaticResource UiFont}" FontSize="13.33"
                            Foreground="{StaticResource TextFaint}" IsHitTestVisible="False" />
@@ -198,11 +213,7 @@
                     </RichTextBox.Template>
                 </RichTextBox>
 
-                <!-- Pasted pictures, free-floating over the text. A null background
-                     means only the pictures themselves take the mouse; the text
-                     around them stays editable. Below the ink, so a doodle can
-                     go over a picture. -->
-                <Canvas x:Name="ImageLayer" ClipToBounds="True" />
+                <!-- Pictures are added to Body in code, positioned by Margin. -->
 
                 <!-- InkCanvas goes here, created only for a note that is drawn on. -->
                 <Grid x:Name="InkHost" />

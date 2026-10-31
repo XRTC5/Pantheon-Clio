@@ -9,13 +9,20 @@ using Clio.Core;
 namespace Clio;
 
 /// <summary>
-/// Pasted pictures: free-floating over the note body, dragged anywhere, resized
-/// from the bottom-right corner (keeping their shape), removed from a
-/// right-click menu. Each is a PNG in Store.ImagesDir; the note keeps only its
-/// file name, position and size, so notes.json stays small.
+/// Pasted pictures and the note's stacking order.
 ///
-/// Memory: a picture is decoded at the size it is shown, not at the size it was
-/// pasted. A 4K screenshot shown 200 wide costs a 200-wide bitmap.
+/// Everything on a note sits in one stack (NoteData.Stack): the text, the
+/// drawing layer, and each picture. Default, bottom to top: pictures, then
+/// drawings, then writing. Bring forward / send backward move a picture
+/// through that whole stack, so it can go behind the text or over it.
+///
+/// A picture behind the text is under the editor, which covers the body and
+/// takes every click, so it is reached by Arrange mode (typing pauses, all
+/// pictures take the mouse) or by Alt-drag (one move, no mode).
+///
+/// Each picture is a PNG in Store.ImagesDir; the note keeps its file name,
+/// position and size. A picture is decoded at the size it is shown, so a 4K
+/// screenshot shown 200 wide costs a 200-wide bitmap.
 /// </summary>
 public partial class NoteWindow
 {
@@ -23,6 +30,8 @@ public partial class NoteWindow
     private const int MaxStoredPx = 2000;
 
     private const double Grip = 14;
+    private const string TextLayer = "text";
+    private const string InkLayer = "ink";
 
     private FrameworkElement? _dragging;
     private Point _grabOffset;
@@ -31,7 +40,112 @@ public partial class NoteWindow
     private void LoadImages()
     {
         foreach (var img in Data.Images) AddImageElement(img);
+        ApplyStack();
+        ShowArrange();
     }
+
+    // ------------------------------------------------------------------ stack
+
+    /// <summary>
+    /// The stack with anything missing filled in at its default place: an older
+    /// note has no stack, and a picture pasted since the last arrange is not in it.
+    /// Unknown entries (a removed picture) are dropped.
+    /// </summary>
+    private List<string> Stack()
+    {
+        var files = Data.Images.Select(i => i.File).ToHashSet();
+        var s = Data.Stack.Where(id => id is TextLayer or InkLayer || files.Contains(id)).Distinct().ToList();
+
+        // New pictures go to the back, under everything else: the default order.
+        var missing = Data.Images.Select(i => i.File).Where(f => !s.Contains(f)).ToList();
+        s.InsertRange(0, missing);
+        if (!s.Contains(InkLayer)) s.Insert(s.Contains(TextLayer) ? s.IndexOf(TextLayer) : s.Count, InkLayer);
+        if (!s.Contains(TextLayer)) s.Add(TextLayer);
+
+        Data.Stack = s;
+        return s;
+    }
+
+    /// <summary>Gives every element its place in the stack.</summary>
+    private void ApplyStack()
+    {
+        var s = Stack();
+        Panel.SetZIndex(Editor, s.IndexOf(TextLayer));
+        Panel.SetZIndex(Placeholder, s.IndexOf(TextLayer));
+        Panel.SetZIndex(InkHost, s.IndexOf(InkLayer));
+        foreach (var frame in Pictures())
+            Panel.SetZIndex(frame, s.IndexOf(((NoteImage)frame.Tag).File));
+    }
+
+    private IEnumerable<Border> Pictures() => Body.Children.OfType<Border>().Where(b => b.Tag is NoteImage);
+
+    private void Restack(Border frame, Func<int, int, int> target)
+    {
+        var s = Stack();
+        var id = ((NoteImage)frame.Tag).File;
+        var from = s.IndexOf(id);
+        var to = Math.Clamp(target(from, s.Count), 0, s.Count - 1);
+        if (from == to) return;
+
+        s.RemoveAt(from);
+        s.Insert(to, id);
+        Data.Stack = s;
+        ApplyStack();
+        Changed();
+    }
+
+    // ---------------------------------------------------------------- arrange
+
+    /// <summary>The Arrange button only appears on a note that has something to arrange.</summary>
+    private void ShowArrange()
+    {
+        ArrangeToggle.Visibility = Data.Images.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (Data.Images.Count == 0 && ArrangeToggle.IsChecked == true) ArrangeToggle.IsChecked = false;
+    }
+
+    private bool Arranging => ArrangeToggle.IsChecked == true;
+
+    /// <summary>
+    /// Arrange mode: the editor stops taking the mouse so pictures behind the
+    /// text can be grabbed, and every picture shows a dashed edge so it is
+    /// clear what can move. Typing comes back when the mode ends.
+    /// </summary>
+    private void Arrange_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_syncing) return;
+        if (Arranging && DrawToggle.IsChecked == true) SetDrawing(false);
+
+        Editor.IsHitTestVisible = !Arranging;
+        foreach (var frame in Pictures()) frame.BorderBrush = EdgeFor(frame, hover: false);
+    }
+
+    private Brush EdgeFor(Border frame, bool hover)
+    {
+        if (hover || _dragging == frame) return (Brush)Resources["NoteAccentSoft"];
+        return Arranging ? ArrangeEdge : Brushes.Transparent;
+    }
+
+    private static readonly Brush ArrangeEdge = Frozen(new SolidColorBrush(Color.FromArgb(0x55, 0xC9, 0xD8, 0xE6)));
+
+    /// <summary>
+    /// Alt-drag: grab the topmost picture under the pointer even if the text is
+    /// on top of it. Runs before the editor sees the click.
+    /// </summary>
+    private void AltGrab(object sender, MouseButtonEventArgs e)
+    {
+        if ((Keyboard.Modifiers & ModifierKeys.Alt) == 0 || Arranging) return;
+
+        var frame = Pictures()
+            .Where(f => new Rect(f.TranslatePoint(new Point(), Body), f.RenderSize).Contains(e.GetPosition(Body)))
+            .OrderByDescending(Panel.GetZIndex)
+            .FirstOrDefault();
+        if (frame is null) return;
+
+        BeginDrag(frame, e.GetPosition(frame));
+        e.Handled = true;
+    }
+
+    // ------------------------------------------------------------------ paste
 
     /// <summary>
     /// Ctrl+V with a picture on the clipboard. Text wins when both are there,
@@ -119,13 +233,19 @@ public partial class NoteWindow
         var dpi = VisualTreeHelper.GetDpi(this);
         var natW = bitmap.PixelWidth / dpi.DpiScaleX;
         var natH = bitmap.PixelHeight / dpi.DpiScaleY;
-        var maxW = Math.Max(60, ImageLayer.ActualWidth * 0.8);
+        var maxW = Math.Max(60, Body.ActualWidth * 0.8);
         var k2 = natW > maxW ? maxW / natW : 1;
         var step = 16 * (Data.Images.Count % 6);
 
         var img = new NoteImage { File = name, X = 8 + step, Y = 8 + step, W = natW * k2, H = natH * k2 };
         Data.Images.Add(img);
         AddImageElement(img);
+
+        // A fresh paste lands on top so you can see it; send it back from its
+        // right-click menu. Everything already on the note keeps its order.
+        Data.Stack = Stack().Where(id => id != name).Append(name).ToList();
+        ApplyStack();
+        ShowArrange();
         Changed();
     }
 
@@ -144,24 +264,26 @@ public partial class NoteWindow
             Child = picture,
             Width = img.W,
             Height = img.H,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(img.X, img.Y, 0, 0),
             BorderThickness = new Thickness(1),
             BorderBrush = Brushes.Transparent,
             Background = Brushes.Transparent,
             Cursor = Cursors.SizeAll,
             Tag = img,
-            ToolTip = "Drag to move. Drag the corner to resize. Right-click to remove.",
+            ToolTip = "Drag to move, drag the corner to resize, right-click to restack or remove. "
+                    + "Behind the text? Use Arrange, or hold Alt and drag.",
         };
-        Canvas.SetLeft(frame, img.X);
-        Canvas.SetTop(frame, img.Y);
 
-        frame.MouseEnter += (_, _) => frame.BorderBrush = (Brush)Resources["NoteAccentSoft"];
-        frame.MouseLeave += (_, _) => { if (_dragging != frame) frame.BorderBrush = Brushes.Transparent; };
+        frame.MouseEnter += (_, _) => frame.BorderBrush = EdgeFor(frame, hover: true);
+        frame.MouseLeave += (_, _) => frame.BorderBrush = EdgeFor(frame, hover: false);
         frame.MouseMove += Picture_Move;
         frame.MouseLeftButtonDown += Picture_Down;
         frame.MouseLeftButtonUp += Picture_Up;
         frame.ContextMenu = PictureMenu(frame);
 
-        ImageLayer.Children.Add(frame);
+        Body.Children.Add(frame);
     }
 
     /// <summary>Decoded to the shown width only: the memory cost follows the screen, not the source.</summary>
@@ -178,39 +300,22 @@ public partial class NoteWindow
         return bmp;
     }
 
-    /// <summary>
-    /// Stacking order, as in any drawing app. The order of Data.Images is the
-    /// order of the layer's children, so it is saved with the note and comes
-    /// back the same after a restart.
-    /// </summary>
-    private void Restack(Border frame, int to)
-    {
-        var img = (NoteImage)frame.Tag;
-        var from = Data.Images.IndexOf(img);
-        to = Math.Clamp(to, 0, Data.Images.Count - 1);
-        if (from < 0 || from == to) return;
-
-        Data.Images.RemoveAt(from);
-        Data.Images.Insert(to, img);
-        ImageLayer.Children.Remove(frame);
-        ImageLayer.Children.Insert(to, frame);
-        Changed();
-    }
-
     private ContextMenu PictureMenu(Border frame)
     {
         var menu = new ContextMenu();
-        MenuItem Order(string header, Func<int, int> target)
+        MenuItem Order(string header, Func<int, int, int> target)
         {
             var item = new MenuItem { Header = header };
-            item.Click += (_, _) => Restack(frame, target(Data.Images.IndexOf((NoteImage)frame.Tag)));
+            item.Click += (_, _) => Restack(frame, target);
             return item;
         }
 
-        var forward = Order("Bring forward", i => i + 1);
-        var front = Order("Bring to front", _ => Data.Images.Count - 1);
-        var backward = Order("Send backward", i => i - 1);
-        var back = Order("Send to back", _ => 0);
+        // Through the whole stack: one step at a time crosses the drawings and
+        // the text, and to back puts the picture under everything.
+        var forward = Order("Bring forward", (i, _) => i + 1);
+        var front = Order("Bring to front", (_, n) => n - 1);
+        var backward = Order("Send backward", (i, _) => i - 1);
+        var back = Order("Send to back", (_, _) => 0);
         menu.Items.Add(forward);
         menu.Items.Add(front);
         menu.Items.Add(backward);
@@ -220,8 +325,9 @@ public partial class NoteWindow
         // Greyed out when there is nowhere to go: already on top, or at the bottom.
         menu.Opened += (_, _) =>
         {
-            var i = Data.Images.IndexOf((NoteImage)frame.Tag);
-            forward.IsEnabled = front.IsEnabled = i < Data.Images.Count - 1;
+            var s = Stack();
+            var i = s.IndexOf(((NoteImage)frame.Tag).File);
+            forward.IsEnabled = front.IsEnabled = i < s.Count - 1;
             backward.IsEnabled = back.IsEnabled = i > 0;
         };
 
@@ -229,26 +335,34 @@ public partial class NoteWindow
         remove.Click += (_, _) =>
         {
             var img = (NoteImage)frame.Tag;
-            ImageLayer.Children.Remove(frame);
+            Body.Children.Remove(frame);
             Data.Images.Remove(img);
+            Data.Stack.Remove(img.File);
             // The note is still live, so the file is no longer referenced by
             // anything; History keeps only what a note still lists.
             try { File.Delete(Path.Combine(Store.ImagesDir, img.File)); } catch { }
+            ShowArrange();
             Changed();
         };
         menu.Items.Add(remove);
         return menu;
     }
 
+    // ------------------------------------------------------------- dragging
+
     private void Picture_Down(object sender, MouseButtonEventArgs e)
     {
-        var frame = (Border)sender;
-        var at = e.GetPosition(frame);
+        BeginDrag((Border)sender, e.GetPosition((Border)sender));
+        e.Handled = true;   // do not also place the text caret underneath
+    }
+
+    private void BeginDrag(Border frame, Point at)
+    {
         _resizing = at.X >= frame.ActualWidth - Grip && at.Y >= frame.ActualHeight - Grip;
         _grabOffset = _resizing ? new Point(frame.ActualWidth - at.X, frame.ActualHeight - at.Y) : at;
         _dragging = frame;
+        frame.BorderBrush = EdgeFor(frame, hover: true);
         frame.CaptureMouse();
-        e.Handled = true;   // do not also place the text caret underneath
     }
 
     private void Picture_Move(object sender, MouseEventArgs e)
@@ -265,12 +379,12 @@ public partial class NoteWindow
         }
 
         var img = (NoteImage)frame.Tag;
-        var pos = e.GetPosition(ImageLayer);
+        var pos = e.GetPosition(Body);
         if (_resizing)
         {
             // Keep the picture's shape: width follows the pointer, height follows width.
             var aspect = img.H / Math.Max(1, img.W);
-            var w = Math.Clamp(pos.X + _grabOffset.X - img.X, 24, Math.Max(24, ImageLayer.ActualWidth - img.X));
+            var w = Math.Clamp(pos.X + _grabOffset.X - img.X, 24, Math.Max(24, Body.ActualWidth - img.X));
             img.W = w;
             img.H = w * aspect;
             frame.Width = img.W;
@@ -278,10 +392,9 @@ public partial class NoteWindow
         }
         else
         {
-            img.X = Math.Clamp(pos.X - _grabOffset.X, -img.W + 24, ImageLayer.ActualWidth - 24);
-            img.Y = Math.Clamp(pos.Y - _grabOffset.Y, -img.H + 24, ImageLayer.ActualHeight - 24);
-            Canvas.SetLeft(frame, img.X);
-            Canvas.SetTop(frame, img.Y);
+            img.X = Math.Clamp(pos.X - _grabOffset.X, -img.W + 24, Body.ActualWidth - 24);
+            img.Y = Math.Clamp(pos.Y - _grabOffset.Y, -img.H + 24, Body.ActualHeight - 24);
+            frame.Margin = new Thickness(img.X, img.Y, 0, 0);
         }
     }
 
@@ -291,6 +404,7 @@ public partial class NoteWindow
         if (_dragging != frame) return;
         frame.ReleaseMouseCapture();
         _dragging = null;
+        frame.BorderBrush = EdgeFor(frame, hover: frame.IsMouseOver);
 
         // After a resize, decode again at the new size: sharp if it grew,
         // smaller in memory if it shrank.

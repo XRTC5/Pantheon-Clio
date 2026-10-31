@@ -126,6 +126,8 @@ public partial class NoteWindow : Window
         Placer.ApplyLayer();
         ShowPinMark();
         PreviewKeyDown += OnKey;
+        // Alt-drag reaches a picture behind the text; it must run before the editor sees the click.
+        PreviewMouseLeftButtonDown += AltGrab;
 
         // Anything the user does keeps the note awake (see Notes.SleepIdle).
         PreviewMouseMove += (_, _) => Touch();
@@ -149,7 +151,7 @@ public partial class NoteWindow : Window
     /// </summary>
     internal bool CanSleep =>
         IsVisible && !IsActive && !IsMouseOver && !_dissolving
-        && DrawToggle.IsChecked != true && Confirm.Visibility != Visibility.Visible;
+        && DrawToggle.IsChecked != true && Confirm.Visibility != Visibility.Visible && !Arranging;
 
     /// <summary>What a woken note restores so it wakes exactly as it slept.</summary>
     internal (double Scroll, bool Format) View => (Editor.VerticalOffset, FormatToggle.IsChecked == true);
@@ -855,6 +857,7 @@ public partial class NoteWindow : Window
     private void Escape()
     {
         if (Confirm.Visibility == Visibility.Visible) Confirm.Visibility = Visibility.Collapsed;
+        else if (Arranging) ArrangeToggle.IsChecked = false;
         else if (_ink?.IsHitTestVisible == true) SetDrawing(false);
     }
 
@@ -924,6 +927,7 @@ public partial class NoteWindow : Window
     {
         // Pen swatches are built on first use: most notes are never drawn on.
         if (on && Swatches.Children.Count == 0) BuildSwatches();
+        if (on && Arranging) ArrangeToggle.IsChecked = false;   // one mode at a time
         if (on) EnsureInk();
         if (_ink is null) return;
 
