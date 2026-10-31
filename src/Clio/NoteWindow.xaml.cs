@@ -103,6 +103,7 @@ public partial class NoteWindow : Window
         // After the handle exists and the window sits on its display: pictures
         // are decoded at that display's scale, and before it they would read 96 DPI.
         LoadItems();
+        StartHistory();
         Placer.Settled += r =>
         {
             Data.Rect = r;
@@ -438,6 +439,7 @@ public partial class NoteWindow : Window
         if (_suppress) return;
 
         ConvertTodos();
+        TextChangedForUndo();
 
         _dirty = true;
         Data.Edited = DateTime.Now;
@@ -840,6 +842,9 @@ public partial class NoteWindow : Window
         e.Handled = (ctrl, shift, alt, key) switch
         {
             (true, false, false, Key.N) => Handle(() => _notes.NewNote(this)),
+            (true, false, false, Key.Z) => Handle(Undo),
+            (true, false, false, Key.Y) => Handle(Redo),
+            (true, true, false, Key.Z) => Handle(Redo),
             // A picture on the clipboard becomes a free-floating picture; text
             // falls through to the editor's own paste.
             (true, false, false, Key.V) => TryPastePicture(),
@@ -919,6 +924,8 @@ public partial class NoteWindow : Window
             }
         }
         _sessionNewId = null;
+        _sessionStrokes.Clear();
+        _ink.StrokeCollected += (_, e) => _sessionStrokes.Push(e.Stroke);
         ApplyPen();
         InkHost.Children.Add(_ink);
         foreach (var f in DrawingFrames()) f.Visibility = Visibility.Hidden;
@@ -980,6 +987,9 @@ public partial class NoteWindow : Window
         _ink = null;
         _sessionNewId = null;
         RebuildDrawings();   // new drawings land just under the writing (Stack)
+        // One undo step for the whole session, and none if nothing changed.
+        var before = _history.Stable?.Drawings.Select(d => d.Id + d.Ink).ToList() ?? new();
+        if (!before.SequenceEqual(Data.Drawings.Select(d => d.Id + d.Ink))) AfterItemChange();
         Changed();
     }
 
@@ -988,7 +998,7 @@ public partial class NoteWindow : Window
         // Pen swatches are built on first use: most notes are never drawn on.
         if (on && Swatches.Children.Count == 0) BuildSwatches();
         if (on && Arranging) ArrangeToggle.IsChecked = false;   // one mode at a time
-        if (on) BeginSession();
+        if (on) { BeforeItemChange(); BeginSession(); }
         else EndSession();
 
         DrawBar.Visibility = on ? Visibility.Visible : Visibility.Collapsed;

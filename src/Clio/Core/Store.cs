@@ -216,6 +216,27 @@ internal static class Store
     /// <summary>Pasted pictures, as PNG files, so notes.json stays small.</summary>
     public static string ImagesDir => Path.Combine(Directory, "images");
 
+    /// <summary>
+    /// Deletes picture files no note or History entry lists. A removed picture's
+    /// file is kept while Clio runs so undo can bring it back; this sweeps the
+    /// leftovers at the next start.
+    /// </summary>
+    public static void SweepImages()
+    {
+        try
+        {
+            if (!System.IO.Directory.Exists(ImagesDir)) return;
+            var used = State.Notes.Concat(State.History).SelectMany(n => n.Images).Select(i => i.File)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (var f in System.IO.Directory.GetFiles(ImagesDir))
+                if (!used.Contains(Path.GetFileName(f))) File.Delete(f);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"picture sweep failed: {ex.Message}");
+        }
+    }
+
     /// <summary>Deletes a note's picture files. Only for a note that is gone for good.</summary>
     public static void DeleteImages(NoteData note)
     {

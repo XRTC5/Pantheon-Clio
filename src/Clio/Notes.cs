@@ -252,6 +252,7 @@ internal sealed class Notes
         {
             var d = w.Data;
             d.Erased = DateTime.Now;
+            _undos.Remove(d.Id);
             Store.State.Notes.Remove(d);
             Store.State.History.Add(d);
             w.Close();
@@ -327,6 +328,13 @@ internal sealed class Notes
         _history.Closed += (_, _) => { _history = null; TrimSoon(); };
         ShowNearHub(_history, resizable: true);
     }
+
+    /// <summary>Undo histories, by note id. Here rather than on the window so a note keeps its
+    /// history through sleeping (its window closes) and waking. Gone when Clio quits.</summary>
+    private readonly Dictionary<string, NoteUndo> _undos = new();
+
+    internal NoteUndo UndoFor(string id) =>
+        _undos.TryGetValue(id, out var u) ? u : _undos[id] = new NoteUndo();
 
     /// <summary>Advanced Features changed: every open note locks or unlocks its items.</summary>
     public void RefreshAdvanced()

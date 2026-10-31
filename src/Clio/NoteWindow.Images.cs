@@ -131,10 +131,12 @@ public partial class NoteWindow
         var to = Math.Clamp(target(from, s.Count), 0, s.Count - 1);
         if (from == to) return;
 
+        BeforeItemChange();
         s.RemoveAt(from);
         s.Insert(to, id);
         Data.Stack = s;
         ApplyStack();
+        AfterItemChange();
         Changed();
     }
 
@@ -317,6 +319,7 @@ public partial class NoteWindow
             bitmap = new TransformedBitmap(bitmap, new ScaleTransform(k, k));
         }
 
+        BeforeItemChange();
         Directory.CreateDirectory(Store.ImagesDir);
         var name = $"{Data.Id}-{Guid.NewGuid().ToString("N")[..8]}.png";
         using (var fs = File.Create(Path.Combine(Store.ImagesDir, name)))
@@ -343,6 +346,7 @@ public partial class NoteWindow
         // right-click menu. Everything already on the note keeps its order.
         PutOnTop(name);
         ApplyAdvanced();
+        AfterItemChange();
         Changed();
     }
 
@@ -489,20 +493,21 @@ public partial class NoteWindow
         var remove = new MenuItem { Header = frame.Tag is NoteDrawing ? "Delete drawing" : "Remove picture" };
         remove.Click += (_, _) =>
         {
+            BeforeItemChange();
             Body.Children.Remove(frame);
             Data.Stack.Remove(IdOf(frame));
             if (frame.Tag is NoteImage img)
             {
+                // The file stays: undo can bring the picture back. Files nothing
+                // refers to any more are swept when Clio next starts.
                 Data.Images.Remove(img);
-                // The note is still live, so the file is no longer referenced by
-                // anything; History keeps only what a note still lists.
-                try { File.Delete(Path.Combine(Store.ImagesDir, img.File)); } catch { }
             }
             else if (frame.Tag is NoteDrawing d)
             {
                 Data.Drawings.Remove(d);
             }
             ShowArrange();
+            AfterItemChange();
             Changed();
         };
         menu.Items.Add(remove);
@@ -524,6 +529,7 @@ public partial class NoteWindow
         _grabOffset = _resizing ? new Point(frame.ActualWidth - at.X, frame.ActualHeight - at.Y) : at;
         _dragStart = frame.Margin;
         _dragging = frame;
+        BeforeItemChange();
         frame.BorderBrush = EdgeFor(frame, hover: true);
         frame.CaptureMouse();
     }
@@ -585,6 +591,8 @@ public partial class NoteWindow
                 break;
         }
         _resizing = false;
+        // A click that did not move or resize anything is not an undo step.
+        if (dx != 0 || dy != 0 || frame.Tag is NoteImage) AfterItemChange();
         Changed();
     }
 
