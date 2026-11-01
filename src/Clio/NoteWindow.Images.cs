@@ -225,8 +225,28 @@ public partial class NoteWindow
 
     private Border? ItemFor(MouseEventArgs e) => ItemFor(e.GetPosition(Body), e.GetPosition(Editor));
 
+    /// <summary>
+    /// Did this click land inside the writing area? These handlers watch every
+    /// click on the window and pick items by position, so without this a picture
+    /// under the erase confirmation (or under the header or a bar) took the
+    /// click meant for the button above it (RTC could not press ERASE).
+    /// </summary>
+    private bool FromBody(MouseEventArgs e)
+    {
+        if (Confirm.Visibility == Visibility.Visible) return false;
+        for (var d = e.OriginalSource as DependencyObject; d is not null;)
+        {
+            if (d == Body) return true;
+            d = d is Visual or System.Windows.Media.Media3D.Visual3D
+                ? VisualTreeHelper.GetParent(d)
+                : LogicalTreeHelper.GetParent(d);
+        }
+        return false;
+    }
+
     private void PictureGrab(object sender, MouseButtonEventArgs e)
     {
+        if (!FromBody(e)) return;
         var alt = (Keyboard.Modifiers & ModifierKeys.Alt) != 0;
         if (ItemFor(e) is { } frame)
         {
@@ -355,7 +375,7 @@ public partial class NoteWindow
     /// <summary>Right-click on an item, even one behind the text: its own stacking and remove menu.</summary>
     private void PictureMenuAt(object sender, MouseButtonEventArgs e)
     {
-        if (ItemFor(e) is not { ContextMenu: { } menu } frame) return;
+        if (!FromBody(e) || ItemFor(e) is not { ContextMenu: { } menu } frame) return;
         menu.PlacementTarget = frame;
         menu.Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
         menu.IsOpen = true;
@@ -367,7 +387,7 @@ public partial class NoteWindow
     {
         if (_box is not null) { MoveBox(e.GetPosition(Body)); return; }
         if (_lasso is not null) { MoveLasso(e.GetPosition(Body)); return; }
-        if (_dragging is not null || Arranging || !Interactive) return;
+        if (_dragging is not null || Arranging || !Interactive || !FromBody(e)) return;
         Editor.Cursor = ItemFor(e) is { } f
             ? OnGrip(f, e.GetPosition(f)) ? Cursors.SizeNWSE : Cursors.SizeAll
             : null;

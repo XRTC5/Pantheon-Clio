@@ -117,7 +117,7 @@ Last updated 2026-11-01, after RTC's first full hand-test. Full automated suite:
 
 - [ ] Alt+click an item, keep Alt held, Alt+click another: both selected, they move together
 - [ ] Let go of Alt, then Alt+click something else: a fresh selection
-- [ ] Alt+click a selected item to take it out (fixed 2026-11-01: a tiny wobble during the click counted as a drag)
+- [x] Alt+click a selected item to take it out (RTC, 2026-11-01)
 - [ ] Alt+drag over empty space draws a box; what it touches is selected
 - [ ] Box and lasso select text boxes too (with Free Drag Writing on)
 - [ ] No need to keep holding Alt or the mouse; the selection stays
@@ -166,7 +166,9 @@ Last updated 2026-11-01, after RTC's first full hand-test. Full automated suite:
 ### Fixed after RTC's hand-test (2026-11-01)
 
 - [x] Clicking a sleeping note brings it to the front (test)
-- [ ] Picture resize: a grip is drawn in the corner on hover and while selected; drag it
+- [x] Picture resize: a grip is drawn in the corner on hover and while selected; drag it (RTC)
+- [x] Alt+click a selected item takes it out (RTC)
+- [ ] ERASE (and other buttons) can be clicked over a picture
 
 ### Lasso select (tick)
 
