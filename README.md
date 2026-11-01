@@ -56,9 +56,9 @@ the arrows. Every feature and whether it is confirmed working:
 ## Install
 
 1. Download one zip from the [latest release](https://github.com/XRTC5/clio/releases/latest):
-   - **`clio-1.1.0-win-x64-standalone.zip`** (51 MB): a single `Clio.exe` with
+   - **`clio-1.1.1-win-x64-standalone.zip`** (51 MB): a single `Clio.exe` with
      .NET inside. Nothing else to install.
-   - **`clio-1.1.0-win-x64.zip`** (0.2 MB): needs Microsoft's .NET 9 Desktop
+   - **`clio-1.1.1-win-x64.zip`** (0.2 MB): needs Microsoft's .NET 9 Desktop
      Runtime, installed once with `winget install Microsoft.DotNet.DesktopRuntime.9`.
      Choose this one if you also run [Argus](https://github.com/XRTC5/argus):
      both apps then share one copy of .NET in memory, and runtime security fixes

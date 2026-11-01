@@ -171,9 +171,9 @@ Last updated 2026-11-01, after RTC's first full hand-test. Full automated suite:
 - [x] Enter on an empty indented line brings it out one level (test)
 - [x] Backspace at the start of an empty indented line brings it out (test)
 - [x] Checklist on an empty line puts the cursor after the box (test; was a bug)
-- [ ] Shift+Tab outdents (Shift can't be faked in tests)
-- [ ] Ctrl+Z undoes an indent in one step
-- [ ] Tab on a line that has text indents it too, and the cursor stays in place
+- [x] Shift+Tab outdents (RTC)
+- [x] Ctrl+Z undoes an indent in one step (RTC)
+- [x] Tab on a line that has text indents it too, and the cursor stays in place (RTC)
 
 ### Fixed after RTC's hand-test (2026-11-01)
 
@@ -230,3 +230,4 @@ Last updated 2026-11-01, after RTC's first full hand-test. Full automated suite:
 
 - [x] v1.0.0 on GitHub with a small zip and a standalone zip (test)
 - [x] v1.1.0 on GitHub, both zips, each exe smoke-started (test)
+- [x] v1.1.1 on GitHub, both zips, each exe smoke-started (test)
