@@ -6,7 +6,7 @@ Every feature, however small, and whether it is confirmed working.
 - **[ ]** not yet confirmed: usually needs a real keyboard, a mouse drag or the real pointer, which
   the automated tests cannot produce. Try it and tick it.
 
-Last updated 2026-10-31, after Lasso and Grouping. Full automated suite: 11 tests, all passing.
+Last updated 2026-11-01, after RTC's first full hand-test. Full automated suite: 11 tests, all passing.
 
 ## Notes and the hub
 
@@ -117,7 +117,7 @@ Last updated 2026-10-31, after Lasso and Grouping. Full automated suite: 11 test
 
 - [ ] Alt+click an item, keep Alt held, Alt+click another: both selected, they move together
 - [ ] Let go of Alt, then Alt+click something else: a fresh selection
-- [ ] Alt+click a selected item (Alt still held) to take it out
+- [ ] Alt+click a selected item to take it out (fixed 2026-11-01: a tiny wobble during the click counted as a drag)
 - [ ] Alt+drag over empty space draws a box; what it touches is selected
 - [ ] Box and lasso select text boxes too (with Free Drag Writing on)
 - [ ] No need to keep holding Alt or the mouse; the selection stays
@@ -162,6 +162,11 @@ Last updated 2026-10-31, after Lasso and Grouping. Full automated suite: 11 test
 - [ ] Right-click inside a box: Cut, Copy, Paste, stacking, Delete text box
 - [ ] Alt+click a box to add it to a multi-selection
 - [ ] Undo and redo inside a box
+
+### Fixed after RTC's hand-test (2026-11-01)
+
+- [x] Clicking a sleeping note brings it to the front (test)
+- [ ] Picture resize: a grip is drawn in the corner on hover and while selected; drag it
 
 ### Lasso select (tick)
 

@@ -37,6 +37,13 @@ internal sealed class Ghost : IDisposable
     /// <summary>Raised once, on the first mouse movement or click over the picture.</summary>
     public event Action<Ghost>? Woken;
 
+    /// <summary>
+    /// A click (not just a hover). The picture never takes focus, so it would eat
+    /// the click and the woken note would stay behind the one in use; Notes
+    /// brings the note to the front instead.
+    /// </summary>
+    public event Action<Ghost>? Clicked;
+
     /// <param name="pixels">Premultiplied BGRA, width x height of <paramref name="rect"/>.</param>
     /// <param name="below">The live note's window; the picture takes the slot just below it,
     /// which becomes the note's own slot the moment the note closes.</param>
@@ -159,11 +166,13 @@ internal sealed class Ghost : IDisposable
             case Native.WM_MOUSEMOVE:
             case Native.WM_LBUTTONDOWN:
             case Native.WM_RBUTTONDOWN:
-                if (Live.TryGetValue(hwnd, out var ghost) && !ghost._woke)
+                if (!Live.TryGetValue(hwnd, out var ghost)) return IntPtr.Zero;
+                if (!ghost._woke)
                 {
                     ghost._woke = true;
                     ghost.Woken?.Invoke(ghost);
                 }
+                if (msg != Native.WM_MOUSEMOVE) ghost.Clicked?.Invoke(ghost);
                 return IntPtr.Zero;
         }
         return Native.DefWindowProc(hwnd, msg, wParam, lParam);

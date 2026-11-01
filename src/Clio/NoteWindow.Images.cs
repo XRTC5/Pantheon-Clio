@@ -33,7 +33,8 @@ public partial class NoteWindow
     /// <summary>Longest side kept on disk. Bigger pastes are scaled down once, on paste.</summary>
     private const int MaxStoredPx = 2000;
 
-    private const double Grip = 14;
+    /// <summary>The resize corner, in device-independent units. A grip is drawn there on pictures.</summary>
+    private const double Grip = 18;
     private const double InkPad = 6;
     private const string TextLayer = "text";
 
@@ -268,13 +269,15 @@ public partial class NoteWindow
     /// </summary>
     private void PressItem(Border frame, MouseButtonEventArgs e, bool alt)
     {
-        // Alt adds to the selection only while Alt stays held from one click to
-        // the next (RTC's rule). Let go of Alt, Alt+click again, and that is a
-        // fresh selection.
-        if (alt && !_altChain) ClearSelection();
+        // Alt+click on an item already selected takes it out on release (if it
+        // was not dragged), whatever came before. On an unselected item, Alt
+        // adds to the selection only while Alt stayed held since the last
+        // Alt+click; otherwise it starts a fresh one (RTC's rules).
+        _wasSelected = _selected.Contains(frame);
+        _pressAlt = alt;
+        if (alt && !_wasSelected && !_altChain) ClearSelection();
         if (alt) _altChain = true;
 
-        _wasSelected = _selected.Contains(frame);
         if (Selecting)
         {
             if (!alt && !_wasSelected) ClearSelection();
@@ -289,6 +292,7 @@ public partial class NoteWindow
         {
             _selected.Add(f);
             f.BorderBrush = EdgeFor(f, hover: false);
+            if (f.Tag is NoteImage) ShowGrip(f, true);
         }
     }
 
@@ -296,7 +300,11 @@ public partial class NoteWindow
     {
         var was = _selected.ToList();
         _selected.Clear();
-        foreach (var f in was) f.BorderBrush = EdgeFor(f, hover: false);
+        foreach (var f in was)
+        {
+            f.BorderBrush = EdgeFor(f, hover: false);
+            if (f.Tag is NoteImage) ShowGrip(f, f.IsMouseOver);
+        }
     }
 
     private void StartBox(Point at)
@@ -360,7 +368,9 @@ public partial class NoteWindow
         if (_box is not null) { MoveBox(e.GetPosition(Body)); return; }
         if (_lasso is not null) { MoveLasso(e.GetPosition(Body)); return; }
         if (_dragging is not null || Arranging || !Interactive) return;
-        Editor.Cursor = ItemFor(e) is not null ? Cursors.SizeAll : null;
+        Editor.Cursor = ItemFor(e) is { } f
+            ? OnGrip(f, e.GetPosition(f)) ? Cursors.SizeNWSE : Cursors.SizeAll
+            : null;
     }
 
     /// <summary>
@@ -379,6 +389,12 @@ public partial class NoteWindow
 
     /// <summary>True while Alt has stayed held since the last Alt+click.</summary>
     private bool _altChain;
+
+    /// <summary>Alt as it was when the item was pressed; letting go of Alt before the mouse must not change the click.</summary>
+    private bool _pressAlt;
+
+    /// <summary>How far the pointer travels before a press becomes a drag. Below it, a click is a click.</summary>
+    private const double DragThreshold = 4;
 
     // ------------------------------------------------------------------ paste
 
@@ -527,8 +543,27 @@ public partial class NoteWindow
         }
 
         var picture = new Image { Stretch = Stretch.Fill, Source = Decode(path, img.W) };
-        Wire(Frame(img, img.W, img.H, new Thickness(img.X, img.Y, 0, 0), picture,
-            "Drag to move, drag the corner to resize, right-click to restack or remove."));
+        // The resize corner, drawn so it can be found (RTC could not find an
+        // invisible one): two short diagonals, shown on hover and while selected.
+        var grip = new System.Windows.Shapes.Path
+        {
+            Data = Geometry.Parse("M 11,2 L 2,11 M 11,7 L 7,11"),
+            StrokeThickness = 1.6,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Margin = new Thickness(0, 0, 2, 2),
+            Visibility = Visibility.Hidden,
+            IsHitTestVisible = false,
+        };
+        grip.SetResourceReference(System.Windows.Shapes.Shape.StrokeProperty, "NoteAccent");
+        var layers = new Grid();
+        layers.Children.Add(picture);
+        layers.Children.Add(grip);
+        var frame = Frame(img, img.W, img.H, new Thickness(img.X, img.Y, 0, 0), layers,
+            "Drag to move, drag the corner to resize, right-click to restack or remove.");
+        frame.MouseEnter += (_, _) => grip.Visibility = Interactive ? Visibility.Visible : Visibility.Hidden;
+        frame.MouseLeave += (_, _) => grip.Visibility = _selected.Contains(frame) ? Visibility.Visible : Visibility.Hidden;
+        Wire(frame);
     }
 
     /// <summary>
@@ -700,7 +735,7 @@ public partial class NoteWindow
     private void BeginDrag(Border frame, Point at)
     {
         // Only pictures resize; a drawing is moved, not scaled.
-        _resizing = frame.Tag is NoteImage or NoteTextBox && at.X >= frame.ActualWidth - Grip && at.Y >= frame.ActualHeight - Grip;
+        _resizing = OnGrip(frame, at);
         _grabOffset = _resizing ? new Point(frame.ActualWidth - at.X, frame.ActualHeight - at.Y) : at;
         _dragStart = frame.Margin;
         _dragging = frame;
@@ -720,9 +755,7 @@ public partial class NoteWindow
         {
             // Hover: a resize cursor over a picture's corner, a move cursor elsewhere.
             var p = e.GetPosition(frame);
-            frame.Cursor = frame.Tag is NoteImage && p.X >= frame.ActualWidth - Grip && p.Y >= frame.ActualHeight - Grip
-                ? Cursors.SizeNWSE
-                : Cursors.SizeAll;
+            frame.Cursor = OnGrip(frame, p) ? Cursors.SizeNWSE : Cursors.SizeAll;
             return;
         }
 
@@ -749,7 +782,10 @@ public partial class NoteWindow
         var top = Math.Clamp(pos.Y - _grabOffset.Y, -frame.ActualHeight + 24, Body.ActualHeight - 24);
         var dx = left - _dragStart.Left;
         var dy = top - _dragStart.Top;
-        if (dx != 0 || dy != 0) _moved = true;
+        // A wobble during a click is not a drag: nothing moves until the pointer
+        // has travelled a few pixels, so Alt+click can deselect cleanly.
+        if (!_moved && Math.Abs(dx) < DragThreshold && Math.Abs(dy) < DragThreshold) return;
+        _moved = true;
         foreach (var (f, start) in _dragGroup)
             f.Margin = new Thickness(start.Left + dx, start.Top + dy, 0, 0);
     }
@@ -767,7 +803,7 @@ public partial class NoteWindow
         if (_resizing)
         {
             // Decode a picture again at the new size: sharp if it grew, smaller if it shrank.
-            if (frame.Tag is NoteImage resized && frame.Child is Image picture)
+            if (frame.Tag is NoteImage resized && PictureIn(frame) is { } picture)
                 picture.Source = Decode(Path.Combine(Store.ImagesDir, resized.File), resized.W);
             _moved = true;
         }
@@ -795,7 +831,7 @@ public partial class NoteWindow
 
         // Alt+click on an item that was already selected, without dragging it:
         // take it out of the selection.
-        if (!_moved && _wasSelected && (Keyboard.Modifiers & ModifierKeys.Alt) != 0)
+        if (!_moved && _wasSelected && _pressAlt)
         {
             foreach (var f in GroupOf(frame).Prepend(frame))
             {
@@ -808,6 +844,19 @@ public partial class NoteWindow
         // A click that did not move or resize anything is not an undo step.
         if (_moved) AfterItemChange();
         Changed();
+    }
+
+    /// <summary>Is this point (in the frame) on the resize corner? Pictures and text boxes resize.</summary>
+    private static bool OnGrip(Border frame, Point at) =>
+        frame.Tag is NoteImage or NoteTextBox && at.X >= frame.ActualWidth - Grip && at.Y >= frame.ActualHeight - Grip;
+
+    private static Image? PictureIn(Border frame) =>
+        frame.Child is Grid g ? g.Children.OfType<Image>().FirstOrDefault() : frame.Child as Image;
+
+    private static void ShowGrip(Border frame, bool on)
+    {
+        if (frame.Child is Grid g && g.Children.OfType<System.Windows.Shapes.Path>().FirstOrDefault() is { } grip)
+            grip.Visibility = on && Interactive ? Visibility.Visible : Visibility.Hidden;
     }
 
     private void Changed()

@@ -188,6 +188,15 @@ internal sealed class Notes
             var ghost = new Ghost(w.Data, pixels, rect, below: w.Placer.Handle,
                                   topmost: Store.State.Layer == Layer.OnTop || w.Data.Pinned);
             ghost.Woken += Wake;
+            // A click on a sleeping note: once awake, to the front, as a click on any window does.
+            ghost.Clicked += g =>
+            {
+                if (!_open.TryGetValue(g.Data.Id, out var awake)) return;
+                // Raise first (works even when Windows refuses focus), then focus.
+                Native.SetWindowPos(awake.Placer.Handle, IntPtr.Zero, 0, 0, 0, 0,
+                    (uint)(Native.SWP.NOMOVE | Native.SWP.NOSIZE));
+                awake.Activate();
+            };
             _ghosts[w.Data.Id] = ghost;
             w.Close();
             return true;
