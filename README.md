@@ -31,6 +31,28 @@ eyes. Clio is the muse of history, the one who keeps the record.
   box, and on a bulleted or numbered line it continues the list. Enter on an
   empty item ends the list.
 
+## Advanced Features
+
+Off by default. Turn them on in Settings, Advanced features (the chevron opens
+the list):
+
+- **Multi-select** (the main switch): Alt+click items to select several, keeping
+  Alt held between clicks, or Alt+drag a box around them. Drag one to move them
+  all, and right-click to restack or delete them all.
+- **Images**: paste pictures with Ctrl+V. Pictures and drawings (each doodle
+  session is one drawing) can be dragged and moved in front of or behind the
+  text.
+- **Free drag writing**: click empty space to start a text box there; drag it by
+  its top edge, widen it from its corner, and right-click it for its menu. Turning
+  this on makes the writing already on a note a box too.
+- **Lasso select**: Alt+Shift+drag a loop around items.
+- **Grouping**: select items, right-click, Group; they then select and move as
+  one.
+
+Undo and redo work as in Word: Ctrl+Z, Ctrl+Y, or click a note's REC number for
+the arrows. Every feature and whether it is confirmed working:
+[FEATURES.md](FEATURES.md).
+
 ## Install
 
 1. Download one zip from the [latest release](https://github.com/XRTC5/clio/releases/latest):
