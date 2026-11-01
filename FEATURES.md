@@ -115,8 +115,9 @@ Last updated 2026-10-31, phase 3 (Free Drag Writing).
 
 ### Multi-select (the master switch)
 
-- [ ] Alt+click an item to add it to the selection
-- [ ] Alt+click a selected item to take it out
+- [ ] Alt+click an item, keep Alt held, Alt+click another: both selected, they move together
+- [ ] Let go of Alt, then Alt+click something else: a fresh selection
+- [ ] Alt+click a selected item (Alt still held) to take it out
 - [ ] Alt+drag over empty space draws a box; what it touches is selected
 - [ ] No need to keep holding Alt or the mouse; the selection stays
 - [ ] A click elsewhere on the note, or Esc, clears the selection
@@ -148,6 +149,9 @@ Last updated 2026-10-31, phase 3 (Free Drag Writing).
 
 - [x] Free drag writing tick in the Advanced dropdown (test)
 - [ ] Click empty space to start a text box there
+- [x] Turning Free Drag Writing on makes the writing already on the note a text box, so it drags too (test)
+- [x] That box keeps the writing's place in the stack, and nothing is duplicated (test)
+- [ ] Text inside a box can be clicked and selected even where a picture or drawing sits behind it
 - [x] Text boxes are saved and come back after a restart (test)
 - [x] Text boxes stay editable with the tick off; they just do not move (test)
 - [x] The Aa bar and keys act on whichever box you are typing in (test: bold went to the box only)

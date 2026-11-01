@@ -222,6 +222,44 @@ public partial class NoteWindow
         Body.Children.Add(frame);
     }
 
+    /// <summary>
+    /// Free Drag Writing on: the writing already on the note becomes a text box
+    /// in the same place, so it drags like any other (RTC: "I should be able
+    /// to drag the writing already done around as well"). It stays a box if
+    /// the tick goes off again; boxes are always editable.
+    ///
+    /// Not an undo step, and the main editor's own undo is cleared: undoing
+    /// into the emptied main text would have put a second copy back.
+    /// </summary>
+    private void MainIntoBox()
+    {
+        if (PlainText().Trim().Length == 0) return;
+
+        var width = Body.ActualWidth > 0 ? Body.ActualWidth : Math.Max(120, Width - 16);
+        var tb = new NoteTextBox { Rich = XamlOf(Editor), Text = PlainText(), X = 0, Y = 0, W = width };
+
+        // Same place in the stack the writing had, so nothing jumps in front of it.
+        var s = Stack();
+        s.Insert(s.IndexOf(TextLayer) + 1, "t:" + tb.Id);
+        Data.Stack = s;
+        Data.TextBoxes.Add(tb);
+
+        _suppress = true;
+        try { SetPlain(Editor.Document, ""); }
+        finally { _suppress = false; }
+        Editor.IsUndoEnabled = false;   // toggling it off and on empties its stack
+        Editor.IsUndoEnabled = true;
+        _undo.RemoveAll(st => st is TextStep t && t.Target == Editor);
+        Data.Text = "";
+        Data.Rich = null;
+
+        AddTextBoxElement(tb);
+        ApplyStack();
+        _dirty = true;
+        RefreshMeta();
+        Changed();
+    }
+
     /// <summary>A click on empty space with Free Drag Writing on: a new box, ready to type in.</summary>
     private void StartTextBox(Point at)
     {

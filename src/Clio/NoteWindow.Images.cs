@@ -87,6 +87,7 @@ public partial class NoteWindow
             frame.BorderBrush = EdgeFor(frame, hover: false);
         }
         if (!Interactive) Editor.Cursor = null;
+        if (Writing) MainIntoBox();
         ShowArrange();
     }
 
@@ -207,9 +208,17 @@ public partial class NoteWindow
         if (frame is null) return null;
 
         var alt = (Keyboard.Modifiers & ModifierKeys.Alt) != 0;
-        var behindText = Panel.GetZIndex(frame) < Panel.GetZIndex(Editor);
-        if (alt || !behindText) return frame;
+        if (alt) return frame;
 
+        // A text box over the item is text: its whole area stays with the box,
+        // or a picture or drawing under a box took the clicks meant for the
+        // writing in it (RTC: "cant select some of the writing").
+        var boxAbove = BoxFrames().Any(b => b != frame && Panel.GetZIndex(b) > Panel.GetZIndex(frame)
+            && new Rect(b.TranslatePoint(new Point(), Body), b.RenderSize).Contains(inBody));
+        if (boxAbove) return null;
+
+        var behindText = Panel.GetZIndex(frame) < Panel.GetZIndex(Editor);
+        if (!behindText) return frame;
         return Editor.GetPositionFromPoint(inEditor, snapToText: false) is null ? frame : null;
     }
 
@@ -258,6 +267,12 @@ public partial class NoteWindow
     /// </summary>
     private void PressItem(Border frame, MouseButtonEventArgs e, bool alt)
     {
+        // Alt adds to the selection only while Alt stays held from one click to
+        // the next (RTC's rule). Let go of Alt, Alt+click again, and that is a
+        // fresh selection.
+        if (alt && !_altChain) ClearSelection();
+        if (alt) _altChain = true;
+
         _wasSelected = _selected.Contains(frame);
         if (Selecting)
         {
@@ -350,8 +365,14 @@ public partial class NoteWindow
     /// </summary>
     private void SwallowLoneAlt(object sender, KeyEventArgs e)
     {
-        if (e.Key == Key.System && e.SystemKey is Key.LeftAlt or Key.RightAlt) e.Handled = true;
+        if (e.Key != Key.System || e.SystemKey is not (Key.LeftAlt or Key.RightAlt)) return;
+        e.Handled = true;
+        // Releasing Alt ends the chain: the next Alt+click starts a new selection.
+        if (e.IsUp) _altChain = false;
     }
+
+    /// <summary>True while Alt has stayed held since the last Alt+click.</summary>
+    private bool _altChain;
 
     // ------------------------------------------------------------------ paste
 
