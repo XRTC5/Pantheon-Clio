@@ -168,7 +168,7 @@ Last updated 2026-11-01, after RTC's first full hand-test. Full automated suite:
 - [x] Clicking a sleeping note brings it to the front (test)
 - [x] Picture resize: a grip is drawn in the corner on hover and while selected; drag it (RTC)
 - [x] Alt+click a selected item takes it out (RTC)
-- [ ] ERASE (and other buttons) can be clicked over a picture
+- [x] ERASE (and other buttons) can be clicked over a picture (RTC)
 
 ### Lasso select (tick)
 
