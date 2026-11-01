@@ -111,6 +111,30 @@
                                       VerticalAlignment="Center" Checked="Writing_Click" Unchecked="Writing_Click"
                                       AutomationProperties.Name="Free drag writing" />
                     </Grid>
+                    <Grid x:Name="LassoRow" Margin="32,10,14,0">
+                        <StackPanel>
+                            <TextBlock Text="Lasso select" FontFamily="{StaticResource UiFont}" FontSize="12"
+                                       Foreground="{StaticResource TextHi}" />
+                            <TextBlock Text="Alt+Shift+drag to draw a loop around items."
+                                       FontFamily="{StaticResource UiFont}" FontSize="10" Foreground="{StaticResource TextLow}"
+                                       Margin="0,2,0,0" TextWrapping="Wrap" MaxWidth="160" HorizontalAlignment="Left" />
+                        </StackPanel>
+                        <ToggleButton x:Name="LassoSwitch" Style="{StaticResource Switch}" HorizontalAlignment="Right"
+                                      VerticalAlignment="Center" Checked="Lasso_Click" Unchecked="Lasso_Click"
+                                      AutomationProperties.Name="Lasso select" />
+                    </Grid>
+                    <Grid x:Name="GroupsRow" Margin="32,10,14,0">
+                        <StackPanel>
+                            <TextBlock Text="Grouping" FontFamily="{StaticResource UiFont}" FontSize="12"
+                                       Foreground="{StaticResource TextHi}" />
+                            <TextBlock Text="Select items, right-click, Group: they then select and move as one."
+                                       FontFamily="{StaticResource UiFont}" FontSize="10" Foreground="{StaticResource TextLow}"
+                                       Margin="0,2,0,0" TextWrapping="Wrap" MaxWidth="160" HorizontalAlignment="Left" />
+                        </StackPanel>
+                        <ToggleButton x:Name="GroupsSwitch" Style="{StaticResource Switch}" HorizontalAlignment="Right"
+                                      VerticalAlignment="Center" Checked="Groups_Click" Unchecked="Groups_Click"
+                                      AutomationProperties.Name="Grouping" />
+                    </Grid>
                 </StackPanel>
 
                 <!-- history -->

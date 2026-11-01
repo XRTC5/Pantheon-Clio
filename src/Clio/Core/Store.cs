@@ -57,6 +57,9 @@ public sealed class NoteData
     /// <summary>Free-floating text boxes (Advanced: Free Drag Writing), each its own rich text.</summary>
     public List<NoteTextBox> TextBoxes { get; set; } = new();
 
+    /// <summary>Groups (Advanced: Grouping): each a list of stack ids that select and move together.</summary>
+    public List<List<string>> Groups { get; set; } = new();
+
     /// <summary>
     /// Draw order of everything on the note, bottom first: "text", "ink", and
     /// each picture by file name. Empty or partial (an older note) resolves to
@@ -122,6 +125,18 @@ public sealed class ClioState
 
     [JsonIgnore]
     public bool WritingOn => Advanced && AdvWriting;
+
+    /// <summary>Advanced: Alt+Shift+drag draws a freehand selection loop.</summary>
+    public bool AdvLasso { get; set; }
+
+    [JsonIgnore]
+    public bool LassoOn => Advanced && AdvLasso;
+
+    /// <summary>Advanced: group selected items so they select and move as one.</summary>
+    public bool AdvGroups { get; set; }
+
+    [JsonIgnore]
+    public bool GroupsOn => Advanced && AdvGroups;
 
     /// <summary>Pictures and drawings are movable only with both switches on.</summary>
     [JsonIgnore]

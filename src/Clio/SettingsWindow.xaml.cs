@@ -40,6 +40,8 @@ public partial class SettingsWindow : Window
         AdvancedSwitch.IsChecked = s.Advanced;
         ImagesSwitch.IsChecked = s.AdvImages;
         WritingSwitch.IsChecked = s.AdvWriting;
+        LassoSwitch.IsChecked = s.AdvLasso;
+        GroupsSwitch.IsChecked = s.AdvGroups;
         // The ticks under the master switch only mean something while it is on.
         AdvancedRows.IsEnabled = s.Advanced;
         AdvancedRows.Opacity = s.Advanced ? 1 : 0.4;
@@ -72,6 +74,22 @@ public partial class SettingsWindow : Window
         Store.Save();
         if (Store.State.Advanced) AdvancedExpand.IsChecked = true;
         Refresh();
+        _notes.RefreshAdvanced();
+    }
+
+    private void Lasso_Click(object sender, RoutedEventArgs e)
+    {
+        if (_syncing) return;
+        Store.State.AdvLasso = LassoSwitch.IsChecked == true;
+        Store.Save();
+        _notes.RefreshAdvanced();
+    }
+
+    private void Groups_Click(object sender, RoutedEventArgs e)
+    {
+        if (_syncing) return;
+        Store.State.AdvGroups = GroupsSwitch.IsChecked == true;
+        Store.Save();
         _notes.RefreshAdvanced();
     }
 

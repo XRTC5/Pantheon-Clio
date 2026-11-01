@@ -234,11 +234,12 @@ public partial class NoteWindow
             return;
         }
 
-        // Alt+drag over empty space: a selection box.
-        if (alt && Selecting && Interactive && !Arranging && DrawToggle.IsChecked != true
+        // Alt+drag over empty space: a selection box; Alt+Shift with Lasso on: a loop.
+        if (alt && Selecting && (Interactive || Writing) && !Arranging && DrawToggle.IsChecked != true
             && new Rect(Body.RenderSize).Contains(e.GetPosition(Body)))
         {
-            StartBox(e.GetPosition(Body));
+            if (Lasso && (Keyboard.Modifiers & ModifierKeys.Shift) != 0) StartLasso(e.GetPosition(Body));
+            else StartBox(e.GetPosition(Body));
             e.Handled = true;
             return;
         }
@@ -284,8 +285,11 @@ public partial class NoteWindow
 
     private void Select(Border frame)
     {
-        _selected.Add(frame);
-        frame.BorderBrush = EdgeFor(frame, hover: false);
+        foreach (var f in GroupOf(frame).Prepend(frame))
+        {
+            _selected.Add(f);
+            f.BorderBrush = EdgeFor(f, hover: false);
+        }
     }
 
     private void ClearSelection()
@@ -327,6 +331,7 @@ public partial class NoteWindow
     /// <summary>Releasing the box selects whatever it touches, replacing the selection.</summary>
     private void PictureRelease(object sender, MouseButtonEventArgs e)
     {
+        if (_lasso is not null) { EndLasso(); e.Handled = true; return; }
         if (_box is null) return;
         var r = new Rect(_boxStart, e.GetPosition(Body));
         Body.Children.Remove(_box);
@@ -334,7 +339,7 @@ public partial class NoteWindow
         Mouse.Capture(null);
 
         ClearSelection();
-        foreach (var f in Items().Where(f => f.IsVisible))
+        foreach (var f in Items().Where(f => f.IsVisible && CanSelect(f)))
             if (r.IntersectsWith(new Rect(f.TranslatePoint(new Point(), Body), f.RenderSize))) Select(f);
         e.Handled = true;
     }
@@ -353,6 +358,7 @@ public partial class NoteWindow
     private void PictureHover(object sender, MouseEventArgs e)
     {
         if (_box is not null) { MoveBox(e.GetPosition(Body)); return; }
+        if (_lasso is not null) { MoveLasso(e.GetPosition(Body)); return; }
         if (_dragging is not null || Arranging || !Interactive) return;
         Editor.Cursor = ItemFor(e) is not null ? Cursors.SizeAll : null;
     }
@@ -662,6 +668,7 @@ public partial class NoteWindow
 
         remove.Click += (_, _) =>
         {
+            ForgetInGroups(Targets(frame).Select(IdOf));
             foreach (var f in Targets(frame))
             {
                 Body.Children.Remove(f);
@@ -678,6 +685,7 @@ public partial class NoteWindow
             Changed();
         };
         menu.Items.Add(remove);
+        AddGroupItems(menu, frame);
         return menu;
     }
 
@@ -789,8 +797,11 @@ public partial class NoteWindow
         // take it out of the selection.
         if (!_moved && _wasSelected && (Keyboard.Modifiers & ModifierKeys.Alt) != 0)
         {
-            _selected.Remove(frame);
-            frame.BorderBrush = EdgeFor(frame, hover: frame.IsMouseOver);
+            foreach (var f in GroupOf(frame).Prepend(frame))
+            {
+                _selected.Remove(f);
+                f.BorderBrush = EdgeFor(f, hover: f.IsMouseOver);
+            }
         }
         _dragGroup = new();
         _resizing = false;

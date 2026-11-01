@@ -282,6 +282,7 @@ public partial class NoteWindow
         _selected.Remove(frame);
         Data.TextBoxes.Remove(tb);
         Data.Stack.Remove("t:" + tb.Id);
+        ForgetInGroups(new[] { "t:" + tb.Id });
         if (record) AfterItemChange();
         RefreshMeta();
         Changed();

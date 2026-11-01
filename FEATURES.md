@@ -6,7 +6,7 @@ Every feature, however small, and whether it is confirmed working.
 - **[ ]** not yet confirmed: usually needs a real keyboard, a mouse drag or the real pointer, which
   the automated tests cannot produce. Try it and tick it.
 
-Last updated 2026-10-31, phase 3 (Free Drag Writing).
+Last updated 2026-10-31, after Lasso and Grouping. Full automated suite: 11 tests, all passing.
 
 ## Notes and the hub
 
@@ -119,6 +119,7 @@ Last updated 2026-10-31, phase 3 (Free Drag Writing).
 - [ ] Let go of Alt, then Alt+click something else: a fresh selection
 - [ ] Alt+click a selected item (Alt still held) to take it out
 - [ ] Alt+drag over empty space draws a box; what it touches is selected
+- [ ] Box and lasso select text boxes too (with Free Drag Writing on)
 - [ ] No need to keep holding Alt or the mouse; the selection stays
 - [ ] A click elsewhere on the note, or Esc, clears the selection
 - [ ] Dragging one selected item moves them all
@@ -162,10 +163,24 @@ Last updated 2026-10-31, phase 3 (Free Drag Writing).
 - [ ] Alt+click a box to add it to a multi-selection
 - [ ] Undo and redo inside a box
 
-### Coming next
+### Lasso select (tick)
 
-- [ ] Lasso select
-- [ ] Grouping
+- [x] Lasso select tick in the Advanced dropdown, saved (test)
+- [ ] Alt+Shift+drag over empty space draws a loop; what it touches is selected
+- [ ] Plain Alt+drag still draws the box
+
+### Grouping (tick)
+
+- [x] Grouping tick in the Advanced dropdown, saved (test)
+- [x] Groups are saved and survive a restart (test)
+- [ ] Select several items, right-click, Group
+- [ ] Clicking any member selects the whole group
+- [ ] Dragging one member moves the whole group
+- [ ] Right-click a member, Ungroup
+- [ ] Deleting a grouped item leaves the rest of the group intact
+- [ ] Group and Ungroup are undoable
+- [ ] Grouping off: members act on their own, and the groups are kept
+- [ ] Works across kinds: pictures, drawings and text boxes in one group
 
 ## History and settings
 
@@ -182,7 +197,7 @@ Last updated 2026-10-31, phase 3 (Free Drag Writing).
 - [x] Hide Clio from the hub or tray menu (test)
 - [x] Double-click the tray icon to bring it back (test)
 - [x] A hidden Clio closes every note window, so it uses almost no memory (test)
-- [x] Idle notes sleep as pictures after 15 s (5 min if they have undo history), about 0.3 MB each (test)
+- [x] Idle notes sleep as pictures after 15 s (5 min if they have undo history), about 0.55 MB each (test, re-measured)
 - [x] Hover a sleeping note to wake it (RTC)
 
 ## With Argus

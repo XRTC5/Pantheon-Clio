@@ -32,7 +32,7 @@ public partial class NoteWindow
     private abstract record Step;
     private sealed record TextStep(RichTextBox Target) : Step;
     private sealed record ItemStep(ItemState State) : Step;
-    private sealed record ItemState(List<NoteImage> Images, List<NoteDrawing> Drawings, List<NoteTextBox> Boxes, List<string> Stack);
+    private sealed record ItemState(List<NoteImage> Images, List<NoteDrawing> Drawings, List<NoteTextBox> Boxes, List<string> Stack, List<List<string>> Groups);
     private sealed record InkStep(StrokeCollection Added, StrokeCollection Removed);
 
     private const int Depth = 100;
@@ -59,7 +59,8 @@ public partial class NoteWindow
         Data.Images.Select(i => new NoteImage { File = i.File, X = i.X, Y = i.Y, W = i.W, H = i.H }).ToList(),
         Data.Drawings.Select(d => new NoteDrawing { Id = d.Id, Ink = d.Ink, X = d.X, Y = d.Y }).ToList(),
         Data.TextBoxes.Select(t => new NoteTextBox { Id = t.Id, Rich = t.Rich, Text = t.Text, X = t.X, Y = t.Y, W = t.W }).ToList(),
-        Data.Stack.ToList());
+        Data.Stack.ToList(),
+        Data.Groups.Select(g => g.ToList()).ToList());
     }
 
     private void Push(Step s)
@@ -135,6 +136,7 @@ public partial class NoteWindow
         Data.Drawings = s.Drawings.Select(d => new NoteDrawing { Id = d.Id, Ink = d.Ink, X = d.X, Y = d.Y }).ToList();
         Data.TextBoxes = s.Boxes.Select(t => new NoteTextBox { Id = t.Id, Rich = t.Rich, Text = t.Text, X = t.X, Y = t.Y, W = t.W }).ToList();
         Data.Stack = s.Stack.ToList();
+        Data.Groups = s.Groups.Select(g => g.ToList()).ToList();
         ClearSelection();
         _active = null;
         foreach (var f in Items().ToList()) Body.Children.Remove(f);
