@@ -79,6 +79,7 @@ Shortcuts inside a note:
 | `Ctrl+.` / `Ctrl+,` | superscript / subscript |
 | `Ctrl+Shift+.` / `Ctrl+Shift+,` | larger / smaller text |
 | `Ctrl+Shift+7` / `Ctrl+Shift+8` / `Ctrl+Shift+9` | numbered list / bulleted list / checklist |
+| `Tab` / `Shift+Tab` on a list line | indent / outdent (numbers go 1.1, 1.2.1 like Docs) |
 | `Ctrl+Shift+L` / `E` / `R` / `J` | align left / centre / right / justify |
 | `Ctrl+\` | clear formatting |
 | `Ctrl+N` | new note beside this one |

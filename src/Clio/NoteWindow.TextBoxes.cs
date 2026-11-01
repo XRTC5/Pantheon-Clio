@@ -39,6 +39,13 @@ public partial class NoteWindow
     /// </summary>
     private void WireEditor(RichTextBox rtb, bool main)
     {
+        // On a list line Tab indents (NoteWindow.Outline); a tab character
+        // must never land there as well, or it hides the line's label.
+        rtb.PreviewTextInput += (_, e) =>
+        {
+            if (e.Text == "	" && rtb.CaretPosition.Paragraph is { } para && (para.Parent is ListItem || Boxed(para)))
+                e.Handled = true;
+        };
         if (!main)
         {
             rtb.TextChanged += Editor_TextChanged;

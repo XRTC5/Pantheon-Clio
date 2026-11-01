@@ -675,6 +675,15 @@ public partial class NoteWindow : Window
             if (remove) Unbox(para);
             else if (!Boxed(para)) Box(para);
         }
+        // On an empty line the caret sat at the very start, so the box was
+        // inserted after it and typing went in front of the box.
+        if (!remove && Ed.Selection.IsEmpty && Ed.CaretPosition.Paragraph is { } here && Boxed(here)
+            && StepsTo(here, Ed.CaretPosition) < 2)
+        {
+            var pos = here.ContentStart.GetInsertionPosition(LogicalDirection.Forward);
+            for (var i = 0; i < 2 && pos.GetNextInsertionPosition(LogicalDirection.Forward) is { } next; i++) pos = next;
+            Ed.CaretPosition = pos;
+        }
         Ed.Focus();
     }
 
@@ -863,7 +872,10 @@ public partial class NoteWindow : Window
             (true, true, false, Key.D7) => Handle(() => Run(EditingCommands.ToggleNumbering)),
             (true, true, false, Key.D8) => Handle(() => Run(EditingCommands.ToggleBullets)),
             (true, true, false, Key.D9) => Handle(ToggleChecklist),
-            (false, false, false, Key.Enter) => EnterInList(),
+            (false, false, false, Key.Enter) => EnterIndented() || EnterInList(),
+            (false, false, false, Key.Tab) => IndentLine(+1),
+            (false, true, false, Key.Tab) => IndentLine(-1),
+            (false, false, false, Key.Back) => BackInList(),
             (true, true, false, Key.L) => Handle(() => Run(EditingCommands.AlignLeft)),
             (true, true, false, Key.E) => Handle(() => Run(EditingCommands.AlignCenter)),
             (true, true, false, Key.R) => Handle(() => Run(EditingCommands.AlignRight)),

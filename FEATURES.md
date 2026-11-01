@@ -163,6 +163,18 @@ Last updated 2026-11-01, after RTC's first full hand-test. Full automated suite:
 - [ ] Alt+click a box to add it to a multi-selection
 - [ ] Undo and redo inside a box
 
+### List indenting (2026-11-01)
+
+- [x] Tab indents a numbered line; nested numbers read 1.1, 1.2, 1.2.1 (test)
+- [x] Tab indents a bullet line; markers go disc, circle, square by level (test)
+- [x] Tab indents a checklist line (test)
+- [x] Enter on an empty indented line brings it out one level (test)
+- [x] Backspace at the start of an empty indented line brings it out (test)
+- [x] Checklist on an empty line puts the cursor after the box (test; was a bug)
+- [ ] Shift+Tab outdents (Shift can't be faked in tests)
+- [ ] Ctrl+Z undoes an indent in one step
+- [ ] Tab on a line that has text indents it too, and the cursor stays in place
+
 ### Fixed after RTC's hand-test (2026-11-01)
 
 - [x] Clicking a sleeping note brings it to the front (test)
