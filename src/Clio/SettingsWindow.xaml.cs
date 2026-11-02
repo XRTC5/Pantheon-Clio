@@ -36,6 +36,7 @@ public partial class SettingsWindow : Window
         var s = Store.State;
         _syncing = true;
         StartupSwitch.IsChecked = s.RunOnStartup;
+        UpdatesSwitch.IsChecked = s.CheckUpdates;
         TopSwitch.IsChecked = s.Layer == Layer.OnTop;
         AdvancedSwitch.IsChecked = s.Advanced;
         ImagesSwitch.IsChecked = s.AdvImages;
@@ -48,6 +49,14 @@ public partial class SettingsWindow : Window
         _syncing = false;
         DaysLabel.Text = s.HistoryDays == 1 ? "1 day" : $"{s.HistoryDays} days";
         HistoryButton.Content = s.History.Count == 0 ? "OPEN HISTORY" : $"OPEN HISTORY  /  {s.History.Count}";
+    }
+
+    private void Updates_Click(object sender, RoutedEventArgs e)
+    {
+        if (_syncing) return;
+        Store.State.CheckUpdates = UpdatesSwitch.IsChecked == true;
+        Store.Save();
+        _notes.CheckForUpdates();
     }
 
     private void Startup_Click(object sender, RoutedEventArgs e)

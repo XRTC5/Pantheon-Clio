@@ -163,6 +163,14 @@ Last updated 2026-11-01, after RTC's first full hand-test. Full automated suite:
 - [ ] Alt+click a box to add it to a multi-selection
 - [ ] Undo and redo inside a box
 
+### Colours and updates (1.2.0)
+
+- [x] Four more colours: Dark blue, Red, Yellow, Grey, after the first five (test, screenshot)
+- [x] Existing notes keep their colour; older versions wrap an unknown colour instead of failing
+- [x] Update dot on the hub when GitHub has a newer release; hidden when current (test, both ways)
+- [x] Settings: Check for updates switch
+- [ ] Clicking the update dot opens the release page in your browser
+
 ### List indenting (2026-11-01)
 
 - [x] Tab indents a numbered line; nested numbers read 1.1, 1.2, 1.2.1 (test)

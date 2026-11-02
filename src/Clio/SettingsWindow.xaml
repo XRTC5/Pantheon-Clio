@@ -47,6 +47,20 @@
                                   AutomationProperties.Name="Launch at start" />
                 </Grid>
 
+                <!-- update check -->
+                <Grid Margin="14,14,14,0">
+                    <StackPanel>
+                        <TextBlock Text="Check for updates" FontFamily="{StaticResource UiFont}" FontSize="12"
+                                   Foreground="{StaticResource TextHi}" />
+                        <TextBlock Text="A dot on the hub when a newer Clio is out. Nothing downloads by itself."
+                                   FontFamily="{StaticResource UiFont}" FontSize="10" Foreground="{StaticResource TextLow}"
+                                   Margin="0,2,0,0" TextWrapping="Wrap" MaxWidth="170" HorizontalAlignment="Left" />
+                    </StackPanel>
+                    <ToggleButton x:Name="UpdatesSwitch" Style="{StaticResource Switch}" HorizontalAlignment="Right"
+                                  VerticalAlignment="Center" Checked="Updates_Click" Unchecked="Updates_Click"
+                                  AutomationProperties.Name="Check for updates" />
+                </Grid>
+
                 <!-- on top -->
                 <Grid Margin="14,14,14,0">
                     <StackPanel>

@@ -46,6 +46,14 @@
             </StackPanel>
 
             <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,7,0">
+                <!-- A newer Clio is on GitHub. Hidden unless the start-up check found one. -->
+                <Button x:Name="UpdateDot" Style="{StaticResource IconButton}" Click="Update_Click" Visibility="Collapsed"
+                        AutomationProperties.Name="Update available">
+                    <Grid Width="9" Height="9">
+                        <Ellipse Width="9" Height="9" Fill="{StaticResource Accent}" Opacity="0.25" />
+                        <Ellipse Width="5" Height="5" Fill="{StaticResource Accent}" />
+                    </Grid>
+                </Button>
                 <Button Style="{StaticResource IconButton}" Click="New_Click" AutomationProperties.Name="New note" ToolTip="New note (Ctrl+N in a note)">
                     <Path Data="M 4.5,0 L 4.5,9 M 0,4.5 L 9,4.5" StrokeThickness="1.3"
                           Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />

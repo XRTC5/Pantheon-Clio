@@ -35,6 +35,11 @@ internal sealed class Notes
         _hub.Refresh();
         _hub.Show();
 
+        // Once per start, after start-up has settled; the HTTP stack is
+        // loaded only for this and the working set is trimmed after it.
+        new DispatcherTimer(TimeSpan.FromSeconds(20), DispatcherPriority.Background,
+            (s, _) => { ((DispatcherTimer)s!).Stop(); CheckForUpdates(); }, Dispatcher.CurrentDispatcher).Start();
+
         if (!Store.State.Collapsed)
             foreach (var d in Store.State.Notes) Open(d).Show();
 
@@ -610,6 +615,20 @@ internal sealed class Notes
     /// back. A stow or an erase is the moment a lot of memory goes dead at
     /// once, so trim a little after, when the GC has had a chance to run.
     /// </summary>
+    /// <summary>Runs the update check if it is on; hides the dot if it is off.</summary>
+    public async void CheckForUpdates()
+    {
+        if (!Store.State.CheckUpdates)
+        {
+            _hub.ShowUpdate(null, null);
+            return;
+        }
+        var found = await Updates.CheckAsync();
+        _hub.ShowUpdate(found?.Version, found?.Page);
+        if (found is { } f) Log.Info($"update available: {f.Version}");
+        TrimSoon();
+    }
+
     public void TrimSoon()
     {
         _trim ??= new DispatcherTimer(TimeSpan.FromSeconds(2), DispatcherPriority.ApplicationIdle, (_, _) =>

@@ -86,6 +86,14 @@ Shortcuts inside a note:
 | `Ctrl+D` | doodle |
 | `Esc` | leave doodle mode, or cancel an erase |
 
+## Updating
+
+Quit Clio, unzip the new release over the old folder, and start it again. Your
+notes are kept in `%APPDATA%\Clio`, apart from the program, so they carry over.
+A dot on the hub means a newer release is out; click it for the download page.
+Clio checks GitHub once per start and never downloads anything by itself. Turn
+the check off in Settings.
+
 ## With Argus
 
 Clio is a separate download from [Argus](https://github.com/XRTC5/argus), and

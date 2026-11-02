@@ -143,4 +143,22 @@ public partial class HubWindow : Window
     private void New_Click(object sender, RoutedEventArgs e) => _notes.NewNote();
     private void Toggle_Click(object sender, RoutedEventArgs e) => _notes.Toggle();
     private void Settings_Click(object sender, RoutedEventArgs e) => _notes.OpenSettings();
+
+    private string? _updatePage;
+
+    /// <summary>Shows (or, with null, hides) the update dot.</summary>
+    public void ShowUpdate(Version? version, string? page)
+    {
+        _updatePage = page;
+        UpdateDot.Visibility = page is null ? Visibility.Collapsed : Visibility.Visible;
+        UpdateDot.ToolTip = version is null ? null
+            : $"Clio {version} is out (you have {Core.Updates.Current.ToString(3)}). Click to open the download page; your notes carry over.";
+    }
+
+    private void Update_Click(object sender, RoutedEventArgs e)
+    {
+        if (_updatePage is null) return;
+        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(_updatePage) { UseShellExecute = true }); }
+        catch (Exception ex) { Core.Log.Warn($"could not open {_updatePage}: {ex.Message}"); }
+    }
 }

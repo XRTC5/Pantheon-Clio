@@ -27,6 +27,12 @@ public partial class NoteWindow : Window
         ("Violet", Color.FromRgb(0xA7, 0x8B, 0xFA)),
         ("Green", Color.FromRgb(0x34, 0xD3, 0x99)),
         ("Rose", Color.FromRgb(0xFB, 0x71, 0x85)),
+        // Added in 1.2.0, at the end so saved notes keep their colour numbers.
+        // "Dark blue" is a deep cobalt: a true navy disappears on the dark panel.
+        ("Dark blue", Color.FromRgb(0x3B, 0x6C, 0xF6)),
+        ("Red", Color.FromRgb(0xEF, 0x44, 0x44)),
+        ("Yellow", Color.FromRgb(0xFA, 0xCC, 0x15)),
+        ("Grey", Color.FromRgb(0x94, 0xA3, 0xB8)),
     };
 
     /// <summary>Pen colours. A near-white first, so ink reads on every accent.</summary>

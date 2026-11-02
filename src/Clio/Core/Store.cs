@@ -111,6 +111,9 @@ public sealed class ClioState
 
     public bool RunOnStartup { get; set; } = true;
 
+    /// <summary>Ask GitHub once per start whether a newer Clio exists (a dot on the hub).</summary>
+    public bool CheckUpdates { get; set; } = true;
+
     /// <summary>
     /// Advanced Features, the master switch. Off is plain Clio: no picture
     /// pasting, nothing to drag or restack, no Alt behaviour, no Arrange button.
