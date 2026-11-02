@@ -239,3 +239,4 @@ Last updated 2026-11-01, after RTC's first full hand-test. Full automated suite:
 - [x] v1.0.0 on GitHub with a small zip and a standalone zip (test)
 - [x] v1.1.0 on GitHub, both zips, each exe smoke-started (test)
 - [x] v1.1.1 on GitHub, both zips, each exe smoke-started (test)
+- [x] v1.2.0 on GitHub, both zips, each exe smoke-started (test)
