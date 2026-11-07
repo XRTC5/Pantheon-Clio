@@ -35,6 +35,9 @@ public sealed class NoteData
 
     public int Color { get; set; }
 
+    /// <summary>A colour from the Colours+ palette as 0xRRGGBB. Overrides <see cref="Color"/>; null means use it.</summary>
+    public int? Rgb { get; set; }
+
     /// <summary>
     /// See-through body: the middle of the note shows the desktop behind it,
     /// while the header, border and brackets stay solid. Per note.
@@ -140,6 +143,15 @@ public sealed class ClioState
 
     [JsonIgnore]
     public bool GroupsOn => Advanced && AdvGroups;
+
+    /// <summary>Advanced: the note and pen colour pickers offer the full palette.</summary>
+    public bool AdvColours { get; set; }
+
+    [JsonIgnore]
+    public bool ColoursOn => Advanced && AdvColours;
+
+    /// <summary>Pen thickness in device-independent units, shared by every note.</summary>
+    public double PenSize { get; set; } = 2.2;
 
     /// <summary>Pictures and drawings are movable only with both switches on.</summary>
     [JsonIgnore]

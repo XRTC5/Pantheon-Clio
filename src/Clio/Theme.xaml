@@ -44,6 +44,53 @@
 
     <!-- ========================================================== buttons -->
 
+    <!-- One hexagon of the Colours+ palette. The shape itself is the hit area, so neighbours never overlap. -->
+    <Style x:Key="PaletteCell" TargetType="Button">
+        <Setter Property="BorderBrush" Value="{StaticResource BgRaised}" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Path Data="M 7.8,0 L 15.6,4.5 L 15.6,13.5 L 7.8,18 L 0,13.5 L 0,4.5 Z" StrokeThickness="1"
+                          Fill="{TemplateBinding Background}" Stroke="{TemplateBinding BorderBrush}" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="BorderBrush" Value="White" />
+                <Setter Property="Panel.ZIndex" Value="2" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- The pen's size: a 1px rule with a small block to drag. A click anywhere on it jumps there. -->
+    <Style x:Key="SizeSlider" TargetType="Slider">
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="IsMoveToPointEnabled" Value="True" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Slider">
+                    <Grid Background="Transparent" Height="16">
+                        <Rectangle Height="1" Fill="{StaticResource TextLow}" VerticalAlignment="Center" />
+                        <Track x:Name="PART_Track">
+                            <Track.Thumb>
+                                <Thumb Width="6" Height="12" Focusable="False">
+                                    <Thumb.Template>
+                                        <ControlTemplate TargetType="Thumb">
+                                            <Border Background="{DynamicResource NoteAccent}" CornerRadius="1" />
+                                        </ControlTemplate>
+                                    </Thumb.Template>
+                                </Thumb>
+                            </Track.Thumb>
+                        </Track>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- Quiet until hovered; the accent comes from the note it sits on. -->
     <Style x:Key="IconButton" TargetType="Button">
         <Setter Property="Background" Value="Transparent" />

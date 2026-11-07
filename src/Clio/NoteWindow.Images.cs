@@ -90,6 +90,7 @@ public partial class NoteWindow
         if (!Interactive) Editor.Cursor = null;
         if (Writing) MainIntoBox();
         ShowArrange();
+        ShowMoreInks();
     }
 
     // ------------------------------------------------------------------ stack

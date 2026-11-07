@@ -48,6 +48,8 @@ the list):
 - **Lasso select**: Alt+Shift+drag a loop around items.
 - **Grouping**: select items, right-click, Group; they then select and move as
   one.
+- **Colours+**: the note colour dropdown becomes a full palette, and the doodle
+  bar gains a + button that opens it for the pen.
 
 Undo and redo work as in Word: Ctrl+Z, Ctrl+Y, or click a note's REC number for
 the arrows. Every feature and whether it is confirmed working:

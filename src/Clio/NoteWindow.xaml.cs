@@ -36,6 +36,9 @@ public partial class NoteWindow : Window
     };
 
     /// <summary>Pen colours. A near-white first, so ink reads on every accent.</summary>
+    private const double MinPenSize = 1;
+    private const double MaxPenSize = 16;
+
     private static readonly Color[] Inks =
     {
         Color.FromRgb(0xE6, 0xF1, 0xFA),
@@ -72,6 +75,10 @@ public partial class NoteWindow : Window
 
     private readonly Notes _notes;
     private InkCanvas? _ink;
+    private Cursor? _penCursor;
+    private Button? _moreInks;
+    private Slider? _sizeSlider;
+    private Ellipse? _sizeDot;
     private Color _pen = Inks[0];
     private bool _suppress;
     private bool _dirty;
@@ -286,9 +293,14 @@ public partial class NoteWindow : Window
 
     // ---------------------------------------------------------------- look
 
+    /// <summary>A note's colour: its palette pick if it has one, otherwise its numbered accent.</summary>
+    public static Color AccentOf(NoteData note) => note.Rgb is { } v
+        ? Color.FromRgb((byte)(v >> 16), (byte)(v >> 8), (byte)v)
+        : Accents[Math.Abs(note.Color) % Accents.Length].Color;
+
     private void ApplyAccent()
     {
-        var c = Accents[Math.Abs(Data.Color) % Accents.Length].Color;
+        var c = AccentOf(Data);
 
         Resources["NoteAccent"] = Frozen(new SolidColorBrush(c));
         Resources["NoteAccentSoft"] = Frozen(new SolidColorBrush(Color.FromArgb(0x66, c.R, c.G, c.B)));
@@ -365,7 +377,16 @@ public partial class NoteWindow : Window
     private void Color_Click(object sender, RoutedEventArgs e)
     {
         var list = new StackPanel();
-        for (var i = 0; i < Accents.Length; i++)
+        var palette = Store.State.ColoursOn
+            ? Palette.Build(this, AccentOf(Data), c =>
+            {
+                Data.Rgb = (c.R << 16) | (c.G << 8) | c.B;
+                ApplyAccent();
+                Store.SaveSoon();
+            })
+            : null;
+        if (palette is not null) list.Children.Add(palette);
+        for (var i = 0; palette is null && i < Accents.Length; i++)
         {
             var index = i;
             var (name, c) = Accents[i];
@@ -376,11 +397,12 @@ public partial class NoteWindow : Window
             });
             row.Children.Add(new TextBlock
             {
-                Text = name, FontSize = 11.5, FontWeight = index == Data.Color ? FontWeights.SemiBold : FontWeights.Normal,
+                Text = name, FontSize = 11.5, FontWeight = Data.Rgb is null && index == Data.Color ? FontWeights.SemiBold : FontWeights.Normal,
             });
             var pick = Picker.Row(this, row, () =>
             {
                 Data.Color = index;
+                Data.Rgb = null;
                 ApplyAccent();
                 Store.SaveSoon();
             });
@@ -434,7 +456,9 @@ public partial class NoteWindow : Window
         tools.Children.Add(pin);
         list.Children.Add(tools);
 
-        Picker.CloseOnPick(list, Picker.Open(ColorButton, list));
+        var popup = Picker.Open(ColorButton, list);
+        Picker.CloseOnPick(list, popup);
+        if (palette is not null) palette.Tag = popup;
     }
 
     // ---------------------------------------------------------------- text
@@ -1008,6 +1032,8 @@ public partial class NoteWindow : Window
         SessionToData();
         InkHost.Children.Clear();
         _ink = null;
+        _penCursor?.Dispose();
+        _penCursor = null;
         _sessionNewId = null;
         RebuildDrawings();   // new drawings land just under the writing (Stack)
         // One undo step for the whole session, and none if nothing changed.
@@ -1020,6 +1046,7 @@ public partial class NoteWindow : Window
     {
         // Pen swatches are built on first use: most notes are never drawn on.
         if (on && Swatches.Children.Count == 0) BuildSwatches();
+        if (on) { ShowMoreInks(); SyncSize(); }
         if (on && Arranging) ArrangeToggle.IsChecked = false;   // one mode at a time
         if (on) { BeforeItemChange(); BeginSession(); }
         else EndSession();
@@ -1054,32 +1081,115 @@ public partial class NoteWindow : Window
                 Content = new Ellipse { Width = 9, Height = 9, Fill = Frozen(new SolidColorBrush(c)) },
                 Tag = c,
             };
-            b.Click += (_, _) =>
-            {
-                _pen = (Color)b.Tag;
-                _syncing = true;
-                EraserToggle.IsChecked = false;
-                _syncing = false;
-                ApplyPen();
-            };
+            b.Click += (_, _) => PickInk((Color)b.Tag);
             Swatches.Children.Add(b);
         }
+
+        _moreInks = new Button
+        {
+            Style = (Style)FindResource("IconButton"),
+            Content = new TextBlock { Text = "+", FontSize = 13, VerticalAlignment = VerticalAlignment.Center },
+            ToolTip = "More colours",
+        };
+        System.Windows.Automation.AutomationProperties.SetName(_moreInks, "More colours");
+        _moreInks.Click += (_, _) =>
+        {
+            var palette = Palette.Build(this, _pen, PickInk);
+            palette.Tag = Picker.Open(_moreInks, palette);
+        };
+        Swatches.Children.Add(_moreInks);
+
+        _sizeDot = new Ellipse
+        {
+            Stroke = (Brush)FindResource("TextLow"),
+            StrokeThickness = 0.5,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        var dotBox = new Grid { Width = MaxPenSize, Height = MaxPenSize, Margin = new Thickness(2, 0, 6, 0) };
+        dotBox.Children.Add(_sizeDot);
+        DockPanel.SetDock(dotBox, Dock.Left);
+        SizeHost.Children.Add(dotBox);
+
+        _sizeSlider = new Slider
+        {
+            Style = (Style)FindResource("SizeSlider"),
+            Minimum = MinPenSize,
+            Maximum = MaxPenSize,
+            ToolTip = "Brush size",
+        };
+        System.Windows.Automation.AutomationProperties.SetName(_sizeSlider, "Brush size");
+        _sizeSlider.ValueChanged += (_, e) =>
+        {
+            if (_syncing) return;
+            Store.State.PenSize = e.NewValue;
+            Store.SaveSoon();
+            ApplyPen();
+        };
+        _sizeSlider.LostMouseCapture += (_, _) => ApplyPen();
+        SizeHost.Children.Add(_sizeSlider);
+    }
+
+    private void PickInk(Color c)
+    {
+        _pen = c;
+        _syncing = true;
+        EraserToggle.IsChecked = false;
+        _syncing = false;
+        ApplyPen();
+    }
+
+    /// <summary>The palette button shows only while Colours+ is on. The pen keeps a colour already picked.</summary>
+    private void ShowMoreInks()
+    {
+        if (_moreInks is not null)
+            _moreInks.Visibility = Store.State.ColoursOn ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>Size is shared by every note, so another note may have changed it since this one last drew.</summary>
+    private void SyncSize()
+    {
+        _syncing = true;
+        _sizeSlider!.Value = Math.Clamp(Store.State.PenSize, MinPenSize, MaxPenSize);
+        _syncing = false;
     }
 
     private void ApplyPen()
     {
+        var size = Math.Clamp(Store.State.PenSize, MinPenSize, MaxPenSize);
+        if (_sizeDot is not null)
+        {
+            _sizeDot.Width = _sizeDot.Height = size;
+            _sizeDot.Fill = Frozen(new SolidColorBrush(_pen));
+        }
         if (_ink is null) return;
-        _ink.EditingMode = EraserToggle.IsChecked == true
+        var erasing = EraserToggle.IsChecked == true;
+        _ink.EditingMode = erasing
             ? InkCanvasEditingMode.EraseByStroke
             : InkCanvasEditingMode.Ink;
         _ink.DefaultDrawingAttributes = new DrawingAttributes
         {
             Color = _pen,
-            Width = 2.2,
-            Height = 2.2,
+            Width = size,
+            Height = size,
             FitToCurve = true,
             IgnorePressure = false,
         };
+
+        // Mid-drag the pointer is on the slider, so the ring is not on show. It is rebuilt when the drag ends.
+        if (_sizeSlider?.IsMouseCaptureWithin == true) return;
+
+        var old = _penCursor;
+        _penCursor = null;
+        if (!erasing)
+        {
+            // A cursor that cannot be made leaves WPF's own: harder to see, but drawing still works.
+            try { _penCursor = PenCursor.Make(_pen, size, VisualTreeHelper.GetDpi(this).DpiScaleX); }
+            catch (Exception ex) { Log.Error("pen cursor", ex); }
+        }
+        _ink.UseCustomCursor = _penCursor is not null;
+        _ink.Cursor = _penCursor;
+        old?.Dispose();   // only now: Windows may still be showing it until the line above
     }
 
     // ---------------------------------------------------------------- erase
@@ -1138,7 +1248,7 @@ public partial class NoteWindow : Window
         }
         Array.Sort(keys, order);
 
-        var c = Accents[Math.Abs(Data.Color) % Accents.Length].Color;
+        var c = AccentOf(Data);
         const int a = 0xE6;
         var spark = (a << 24) | ((c.R * a / 255) << 16) | ((c.G * a / 255) << 8) | (c.B * a / 255);
         var band = Math.Max(1, n / 12);

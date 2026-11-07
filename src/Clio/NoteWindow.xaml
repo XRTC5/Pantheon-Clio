@@ -237,18 +237,24 @@
             <!-- ================================================== draw toolbar -->
             <Border x:Name="DrawBar" Grid.Row="3" Visibility="Collapsed" Margin="8,0,8,7"
                     BorderBrush="{StaticResource Rule}" BorderThickness="0,1,0,0" Padding="0,6,0,0">
-                <DockPanel LastChildFill="False">
-                    <StackPanel x:Name="Swatches" Orientation="Horizontal" DockPanel.Dock="Left" />
-                    <ToggleButton x:Name="EraserToggle" Style="{StaticResource IconToggle}" Margin="4,0,0,0"
-                                  Checked="Eraser_Click" Unchecked="Eraser_Click" ToolTip="Erase strokes" DockPanel.Dock="Left">
-                        <Path Data="M 1,8 L 6,3 L 9,6 L 6,9 L 3,9 Z" StrokeThickness="1.1"
-                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" />
-                    </ToggleButton>
-                    <Button Style="{StaticResource TextButton}" Content="DONE" Padding="8,2" FontSize="9"
-                            Click="Draw_Done" DockPanel.Dock="Right" />
-                    <Button Style="{StaticResource TextButton}" Content="CLEAR" Padding="8,2" FontSize="9"
-                            Click="ClearInk_Click" DockPanel.Dock="Right" Margin="0,0,4,0" />
-                </DockPanel>
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <StackPanel x:Name="Swatches" Orientation="Horizontal" />
+                        <ToggleButton x:Name="EraserToggle" Style="{StaticResource IconToggle}" Margin="4,0,0,0"
+                                      Checked="Eraser_Click" Unchecked="Eraser_Click" ToolTip="Erase strokes">
+                            <Path Data="M 1,8 L 6,3 L 9,6 L 6,9 L 3,9 Z" StrokeThickness="1.1"
+                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" />
+                        </ToggleButton>
+                    </StackPanel>
+                    <DockPanel Margin="0,4,0,0">
+                        <Button Style="{StaticResource TextButton}" Content="DONE" Padding="8,2" FontSize="9"
+                                Click="Draw_Done" DockPanel.Dock="Right" />
+                        <Button Style="{StaticResource TextButton}" Content="CLEAR" Padding="8,2" FontSize="9"
+                                Click="ClearInk_Click" DockPanel.Dock="Right" Margin="0,0,4,0" />
+                        <!-- The size slider and its preview dot, created with the swatches on first use. -->
+                        <DockPanel x:Name="SizeHost" Margin="0,0,8,0" />
+                    </DockPanel>
+                </StackPanel>
             </Border>
 
             <!-- HUD corner brackets, over everything, never hit-tested. -->

@@ -149,6 +149,18 @@
                                       VerticalAlignment="Center" Checked="Groups_Click" Unchecked="Groups_Click"
                                       AutomationProperties.Name="Grouping" />
                     </Grid>
+                    <Grid x:Name="ColoursRow" Margin="32,10,14,0">
+                        <StackPanel>
+                            <TextBlock Text="Colours+" FontFamily="{StaticResource UiFont}" FontSize="12"
+                                       Foreground="{StaticResource TextHi}" />
+                            <TextBlock Text="Pick note and pen colours from a full palette."
+                                       FontFamily="{StaticResource UiFont}" FontSize="10" Foreground="{StaticResource TextLow}"
+                                       Margin="0,2,0,0" TextWrapping="Wrap" MaxWidth="160" HorizontalAlignment="Left" />
+                        </StackPanel>
+                        <ToggleButton x:Name="ColoursSwitch" Style="{StaticResource Switch}" HorizontalAlignment="Right"
+                                      VerticalAlignment="Center" Checked="Colours_Click" Unchecked="Colours_Click"
+                                      AutomationProperties.Name="Colours+" />
+                    </Grid>
                 </StackPanel>
 
                 <!-- history -->

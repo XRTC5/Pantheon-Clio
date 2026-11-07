@@ -39,7 +39,7 @@ public partial class HistoryWindow : Window
 
     private UIElement Row(NoteData note)
     {
-        var accent = NoteWindow.Accents[Math.Abs(note.Color) % NoteWindow.Accents.Length].Color;
+        var accent = NoteWindow.AccentOf(note);
         var brush = new SolidColorBrush(accent);
         brush.Freeze();
 

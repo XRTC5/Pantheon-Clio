@@ -43,6 +43,7 @@ public partial class SettingsWindow : Window
         WritingSwitch.IsChecked = s.AdvWriting;
         LassoSwitch.IsChecked = s.AdvLasso;
         GroupsSwitch.IsChecked = s.AdvGroups;
+        ColoursSwitch.IsChecked = s.AdvColours;
         // The ticks under the master switch only mean something while it is on.
         AdvancedRows.IsEnabled = s.Advanced;
         AdvancedRows.Opacity = s.Advanced ? 1 : 0.4;
@@ -98,6 +99,14 @@ public partial class SettingsWindow : Window
     {
         if (_syncing) return;
         Store.State.AdvGroups = GroupsSwitch.IsChecked == true;
+        Store.Save();
+        _notes.RefreshAdvanced();
+    }
+
+    private void Colours_Click(object sender, RoutedEventArgs e)
+    {
+        if (_syncing) return;
+        Store.State.AdvColours = ColoursSwitch.IsChecked == true;
         Store.Save();
         _notes.RefreshAdvanced();
     }

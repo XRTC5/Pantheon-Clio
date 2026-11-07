@@ -104,6 +104,11 @@ Last updated 2026-11-01, after RTC's first full hand-test. Full automated suite:
 - [x] Each doodle session becomes one drawing (test)
 - [x] Older notes' doodles become one drawing (test)
 - [x] Saving mid-doodle keeps the strokes (by design: Flush splits the session)
+- [x] Brush size slider on the doodle bar, 1 to 16, shared by all notes and saved (test)
+- [x] A dot beside the slider shows the pen's size and colour (test)
+- [ ] The pen cursor is a large ring in the pen's colour, easy to see on any note, with a dot at the true stroke size
+- [ ] Dragging the slider changes the size of the next stroke, not the strokes already drawn
+- [ ] The eraser keeps its own cursor
 
 ## Advanced Features (Settings)
 
@@ -112,6 +117,15 @@ Last updated 2026-11-01, after RTC's first full hand-test. Full automated suite:
 - [x] The ticks under it are greyed until the master is on (test)
 - [x] Off: no picture pasting, nothing to drag or restack, no Alt behaviour, no four-arrow button (test)
 - [x] Off: existing pictures and drawings stay visible but locked (test)
+
+### Colours+ (tick)
+
+- [x] Off: the note colour list as before, no + on the doodle bar (test)
+- [x] On: the note colour dropdown is a palette of 184 colours, and a pick is saved (test)
+- [x] On: the + on the doodle bar opens the palette for the pen, and it closes on a pick (test)
+- [x] Turning it off keeps a colour already picked; choosing a named colour replaces it (test)
+- [ ] A hovered cell lights up, and the current colour is outlined
+- [ ] A palette colour shows on the note, in History and in the erase effect
 
 ### Multi-select (the master switch)
 
