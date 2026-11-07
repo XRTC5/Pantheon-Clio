@@ -126,7 +126,7 @@ Last updated 2026-11-01, after RTC's first full hand-test. Full automated suite:
 - [x] On: the + on the doodle bar opens the palette for the pen, and it closes on a pick (test)
 - [x] Turning it off keeps a colour already picked; choosing a named colour replaces it (test)
 - [x] A hovered cell lights up (RTC)
-- [ ] The current colour is outlined when the palette opens
+- [x] The current colour is outlined when the palette opens (RTC)
 - [x] A palette colour shows on the note, in History and in the erase effect (RTC)
 - [x] Restoring from History keeps a palette colour, even with Colours+ off (RTC)
 
