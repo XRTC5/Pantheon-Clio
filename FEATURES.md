@@ -106,9 +106,9 @@ Last updated 2026-11-01, after RTC's first full hand-test. Full automated suite:
 - [x] Saving mid-doodle keeps the strokes (by design: Flush splits the session)
 - [x] Brush size slider on the doodle bar, 1 to 16, shared by all notes and saved (test)
 - [x] A dot beside the slider shows the pen's size and colour (test)
-- [ ] The pen cursor is a large ring in the pen's colour, easy to see on any note, with a dot at the true stroke size
+- [x] The pen cursor is a large ring in the pen's colour, easy to see on any note, with a dot at the true stroke size (RTC)
 - [ ] Dragging the slider changes the size of the next stroke, not the strokes already drawn
-- [ ] Pressing anywhere on the slider's bar and dragging moves it, without grabbing the block first
+- [x] Pressing anywhere on the slider's bar and dragging moves it, without grabbing the block first (RTC)
 - [ ] The eraser keeps its own cursor
 
 ## Advanced Features (Settings)
@@ -255,3 +255,4 @@ Last updated 2026-11-01, after RTC's first full hand-test. Full automated suite:
 - [x] v1.1.0 on GitHub, both zips, each exe smoke-started (test)
 - [x] v1.1.1 on GitHub, both zips, each exe smoke-started (test)
 - [x] v1.2.0 on GitHub, both zips, each exe smoke-started (test)
+- [x] v1.3.0 on GitHub, both zips, each exe smoke-started (test)
