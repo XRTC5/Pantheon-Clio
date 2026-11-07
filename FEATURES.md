@@ -107,7 +107,7 @@ Last updated 2026-11-01, after RTC's first full hand-test. Full automated suite:
 - [x] Brush size slider on the doodle bar, 1 to 16, shared by all notes and saved (test)
 - [x] A dot beside the slider shows the pen's size and colour (test)
 - [x] The pen cursor is a large ring in the pen's colour, easy to see on any note, with a dot at the true stroke size (RTC)
-- [ ] Dragging the slider changes the size of the next stroke, not the strokes already drawn
+- [x] Dragging the slider changes the size of the next stroke, not the strokes already drawn (RTC)
 - [x] Pressing anywhere on the slider's bar and dragging moves it, without grabbing the block first (RTC)
 - [ ] The eraser keeps its own cursor
 
@@ -125,8 +125,10 @@ Last updated 2026-11-01, after RTC's first full hand-test. Full automated suite:
 - [x] On: the note colour dropdown is a palette of 184 colours, and a pick is saved (test)
 - [x] On: the + on the doodle bar opens the palette for the pen, and it closes on a pick (test)
 - [x] Turning it off keeps a colour already picked; choosing a named colour replaces it (test)
-- [ ] A hovered cell lights up, and the current colour is outlined
-- [ ] A palette colour shows on the note, in History and in the erase effect
+- [x] A hovered cell lights up (RTC)
+- [ ] The current colour is outlined when the palette opens
+- [x] A palette colour shows on the note, in History and in the erase effect (RTC)
+- [x] Restoring from History keeps a palette colour, even with Colours+ off (RTC)
 
 ### Multi-select (the master switch)
 
