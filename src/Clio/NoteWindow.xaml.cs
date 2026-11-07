@@ -1126,6 +1126,28 @@ public partial class NoteWindow : Window
             Store.SaveSoon();
             ApplyPen();
         };
+        // Press anywhere on the bar and drag from there, not only from the block.
+        void SlideTo(MouseEventArgs e)
+        {
+            if (_sizeSlider.Template.FindName("PART_Track", _sizeSlider) is Track track)
+                _sizeSlider.Value = Math.Clamp(track.ValueFromPoint(e.GetPosition(track)), MinPenSize, MaxPenSize);
+        }
+        _sizeSlider.PreviewMouseLeftButtonDown += (_, e) =>
+        {
+            _sizeSlider.CaptureMouse();
+            SlideTo(e);
+            e.Handled = true;
+        };
+        _sizeSlider.PreviewMouseMove += (_, e) =>
+        {
+            if (_sizeSlider.IsMouseCaptured) SlideTo(e);
+        };
+        _sizeSlider.PreviewMouseLeftButtonUp += (_, e) =>
+        {
+            if (!_sizeSlider.IsMouseCaptured) return;
+            _sizeSlider.ReleaseMouseCapture();
+            e.Handled = true;
+        };
         _sizeSlider.LostMouseCapture += (_, _) => ApplyPen();
         SizeHost.Children.Add(_sizeSlider);
     }

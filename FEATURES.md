@@ -108,6 +108,7 @@ Last updated 2026-11-01, after RTC's first full hand-test. Full automated suite:
 - [x] A dot beside the slider shows the pen's size and colour (test)
 - [ ] The pen cursor is a large ring in the pen's colour, easy to see on any note, with a dot at the true stroke size
 - [ ] Dragging the slider changes the size of the next stroke, not the strokes already drawn
+- [ ] Pressing anywhere on the slider's bar and dragging moves it, without grabbing the block first
 - [ ] The eraser keeps its own cursor
 
 ## Advanced Features (Settings)

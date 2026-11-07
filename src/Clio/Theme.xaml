@@ -64,10 +64,9 @@
         </Style.Triggers>
     </Style>
 
-    <!-- The pen's size: a 1px rule with a small block to drag. A click anywhere on it jumps there. -->
+    <!-- The pen's size: a 1px rule with a small block. The note wires pressing anywhere on it to start a drag. -->
     <Style x:Key="SizeSlider" TargetType="Slider">
         <Setter Property="Focusable" Value="False" />
-        <Setter Property="IsMoveToPointEnabled" Value="True" />
         <Setter Property="VerticalAlignment" Value="Center" />
         <Setter Property="Template">
             <Setter.Value>
