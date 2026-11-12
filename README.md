@@ -1,7 +1,7 @@
 # Clio
 
 Desktop sticky notes for Windows, built as a companion to
-[Argus](https://github.com/XRTC5/argus). Argus is the watcher with a hundred
+[Argus](https://github.com/XRTC5/Pantheon-Argus). Argus is the watcher with a hundred
 eyes. Clio is the muse of history, the one who keeps the record.
 
 - **Notes stay where you leave them.** Drag a note by its header and resize it
@@ -57,12 +57,12 @@ the arrows. Every feature and whether it is confirmed working:
 
 ## Install
 
-1. Download one zip from the [latest release](https://github.com/XRTC5/clio/releases/latest):
+1. Download one zip from the [latest release](https://github.com/XRTC5/Pantheon-Clio/releases/latest):
    - **`clio-1.3.0-win-x64-standalone.zip`** (51 MB): a single `Clio.exe` with
      .NET inside. Nothing else to install.
    - **`clio-1.3.0-win-x64.zip`** (0.2 MB): needs Microsoft's .NET 9 Desktop
      Runtime, installed once with `winget install Microsoft.DotNet.DesktopRuntime.9`.
-     Choose this one if you also run [Argus](https://github.com/XRTC5/argus):
+     Choose this one if you also run [Argus](https://github.com/XRTC5/Pantheon-Argus):
      both apps then share one copy of .NET in memory, and runtime security fixes
      arrive through Windows Update.
 2. Unzip it to a folder you will keep, for example `%LOCALAPPDATA%\Clio`.
@@ -98,7 +98,7 @@ the check off in Settings.
 
 ## With Argus
 
-Clio is a separate download from [Argus](https://github.com/XRTC5/argus), and
+Clio is a separate download from [Argus](https://github.com/XRTC5/Pantheon-Argus), and
 each works without the other. If both are installed, they find each other with
 no setup. Each time Clio starts it writes its path to
 `%APPDATA%\Clio\app.json`, and Argus shows a **Clio** row with Start and Stop.
